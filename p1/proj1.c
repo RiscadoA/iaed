@@ -83,14 +83,14 @@ int add_task(struct kanban* board, int duration, char desc[]) {
 	/* Check if there are too many tasks */
 	if (board->task_count == MAX_TASK_COUNT) {
 		puts("too many tasks");
-		return -1;
+		return 0;
 	}
 	
 	/* Check if there is already a task with this description */
 	for (i = 0; i < board->task_count; ++i) {
 		if (strncmp(board->tasks[i].desc, desc, TASK_DESC_SZ) == 0) {
 			puts("duplicate description");
-			return -1;
+			return 0;
 		}
 	}
 
@@ -128,7 +128,6 @@ int add_task(struct kanban* board, int duration, char desc[]) {
 	return task->id;
 }
 
-
 /* Adds a user to a kanban board */
 int add_user(struct kanban* board, char name[]) {
 	int i;
@@ -161,6 +160,70 @@ struct task* find_task(struct kanban* board, int id) {
 	}
 
 	return NULL;
+}
+
+/* Checks if a user exists on a board */
+int find_user(struct kanban* board, char name[]) {
+	int i;
+
+	for (i = 0; board->users[i][0] != '\0' && i < MAX_USER_COUNT; ++i) {
+		if (strncmp(board->users[i], name, USER_NAME_SZ) == 0) {
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
+/* Checks if a activity exists on a board */
+int find_activity(struct kanban* board, char activity[]) {
+	int i;
+
+	for (i = 0; board->activities[i][0] != '\0' && i < MAX_ACTIVITY_COUNT; ++i) {
+		if (strncmp(board->activities[i], activity, ACTIVITY_DESC_SZ) == 0) {
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
+/* Moves a task on a kanban board */
+int move_task(struct kanban* board, int id, char user[], char activity[]) {
+	int diff;
+	struct task* task = find_task(board, id);
+
+	if (task == NULL) {
+		puts("no such task");
+		return 0;
+	}
+
+	if (strncmp("TO DO", activity, ACTIVITY_DESC_SZ) == 0) {
+		puts("task already started");
+		return 0;	
+	}
+
+	/* Check if user exists */
+	if (!find_user(board, user)) {
+		puts("no such user");
+		return 0;	
+	}
+
+	/* Check if activity exists */
+	if (!find_activity(board, activity)) {
+		puts("no such activity");
+		return 0;	
+	}
+
+	strncpy(task->user, user, USER_NAME_SZ);
+	strncpy(task->activity, activity, ACTIVITY_DESC_SZ);
+
+	if (strncmp(task->activity, "DONE", ACTIVITY_DESC_SZ) == 0) {
+		diff = board->time - task->start;
+		printf("duration=%d slack=%d\n", diff, task->duration - diff);
+	}
+
+	return 1;
 }
 
 /* Prints a task */
@@ -248,7 +311,7 @@ int read_t_command(struct kanban* board) {
 	scanf("%d", &duration);
 	read_desc(desc, TASK_DESC_SZ);
 	id = add_task(board, duration, desc);
-	if (id == -1) {
+	if (!id) {
 		return STATUS_ERR;
 	}
 
@@ -332,6 +395,22 @@ int read_u_command(struct kanban* board) {
 	return STATUS_OK;
 }
 
+/* Reads and executes a 'm' command from stdin */
+int read_m_command(struct kanban* board) {
+	int id;
+	char user[USER_NAME_SZ], activity[ACTIVITY_DESC_SZ];
+
+	scanf("%d", &id);
+	read_username(user, USER_NAME_SZ);
+	read_desc(activity, ACTIVITY_DESC_SZ);
+
+	if (!move_task(board, id, user, activity)) {
+		return STATUS_ERR;
+	}
+
+	return STATUS_OK;
+}
+
 /* TODO */
 int main() {
 	int c, status;
@@ -358,6 +437,10 @@ int main() {
 		case 'u':
 			/* Add user / list users */
 			status = read_u_command(&board);
+			break;
+		case 'm':
+			/* Move task */
+			status = read_m_command(&board);
 			break;
 
 		default:
