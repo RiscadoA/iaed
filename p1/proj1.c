@@ -128,6 +128,28 @@ int add_task(struct kanban* board, int duration, char desc[]) {
 	return task->id;
 }
 
+
+/* Adds a user to a kanban board */
+int add_user(struct kanban* board, char name[]) {
+	int i;
+
+	/* Search for an empty slot and check if the name is duplicated */
+	for (i = 0; board->users[i][0] != '\0' && i < MAX_USER_COUNT; ++i) {
+		if (strncmp(board->users[i], name, USER_NAME_SZ) == 0) {
+			printf("user already exists\n");
+			return 0;
+		}
+	}
+
+	if (i >= MAX_USER_COUNT) {
+		printf("too many users\n");
+		return 0;
+	}
+
+	strncpy(board->users[i], name, USER_NAME_SZ);
+	return 1;
+}
+
 /* Gets a pointer to a task from its id */
 struct task* find_task(struct kanban* board, int id) {
 	int i;
@@ -161,6 +183,14 @@ void list_tasks(struct kanban* board) {
 	}
 }
 
+/* Print all of the users in creation order */
+void list_users(struct kanban* board) {
+	int i;
+	for (i = 0; board->users[i][0] != '\0' && i < MAX_USER_COUNT; ++i) {
+		printf("%.*s\n", USER_NAME_SZ, board->users[i]);
+	}
+}
+
 /* Reads either a task or activity description from stdin */
 void read_desc(char desc[], int size) {
 	/* Index of the last character read */
@@ -176,7 +206,7 @@ void read_desc(char desc[], int size) {
 				desc[++index] = c;
 			}
 		}
-		else {
+		else if (index < size - 1) {
 			desc[++index] = c;
 			last_nws = index;
 		}
@@ -186,6 +216,28 @@ void read_desc(char desc[], int size) {
 	if (last_nws < size - 1) {
 		desc[last_nws + 1] = '\0';
 	}
+}
+
+/* Tries to read a username from stdin */
+int read_username(char name[], int size) {
+	/* Index of the last character read */
+	int index = -1;
+	int c;
+
+	while ((c = getchar()) != '\n') {
+		if ((c == ' ' || c == '\t') && index != -1) {
+			break;
+		}
+		else if (c != ' ' && c != '\t' && index < size - 1) {
+			name[++index] = c;
+		}
+	}
+
+	if (index < size - 1) {
+		name[index + 1] = '\0';
+	}
+
+	return index != -1;
 }
 
 /* Reads and executes a 't' command from stdin */
@@ -262,6 +314,24 @@ int read_n_command(struct kanban* board) {
 	return STATUS_OK;
 }
 
+/* Reads and executes a 'u' command from stdin */
+int read_u_command(struct kanban* board) {
+	char name[USER_NAME_SZ];
+
+	if (read_username(name, USER_NAME_SZ)) {
+		/* Add user to board */
+		if (!add_user(board, name)) {
+			return STATUS_ERR;
+		}
+	}
+	else {
+		/* Print list of users */
+		list_users(board);
+	}
+
+	return STATUS_OK;
+}
+
 /* TODO */
 int main() {
 	int c, status;
@@ -284,6 +354,10 @@ int main() {
 		case 'n':
 			/* Advances time */
 			status = read_n_command(&board);
+			break;
+		case 'u':
+			/* Add user / list users */
+			status = read_u_command(&board);
 			break;
 
 		default:
