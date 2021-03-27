@@ -33,9 +33,9 @@ struct task {
 	/* Task description */
 	char desc[TASK_DESC_SZ];
 	/* User who is responsible for the task */
-	char user[USER_NAME_SZ];
+	const char* user;
 	/* Activity where the task is placed */
-	char activity[ACTIVITY_DESC_SZ];
+	const char* activity;
 	/* Predicted task completion duration */
 	int duration;
 	/* The time the task started being executed */
@@ -75,8 +75,34 @@ void init_kanban(struct kanban* board) {
 	board->time = 0;
 }
 
+/* Gets a pointer to a user on a board */
+const char* find_user(struct kanban* board, const char* name) {
+	int i;
+
+	for (i = 0; board->users[i][0] != '\0' && i < MAX_USER_COUNT; ++i) {
+		if (strncmp(board->users[i], name, USER_NAME_SZ) == 0) {
+			return board->users[i];
+		}
+	}
+
+	return NULL;
+}
+
+/* Gets a pointer to an activity on a board */
+const char* find_activity(struct kanban* board, const char* activity) {
+	int i;
+
+	for (i = 0; board->activities[i][0] != '\0' && i < MAX_ACTIVITY_COUNT; ++i) {
+		if (strncmp(board->activities[i], activity, ACTIVITY_DESC_SZ) == 0) {
+			return board->activities[i];
+		}
+	}
+
+	return NULL;
+}
+
 /* Adds a task to a kanban board */
-int add_task(struct kanban* board, int duration, char desc[]) {
+int add_task(struct kanban* board, int duration, const char* desc) {
 	int i;
 	struct task* task;
 
@@ -120,8 +146,8 @@ int add_task(struct kanban* board, int duration, char desc[]) {
 	task->id = ++board->task_count;
 	strncpy(task->desc, desc, TASK_DESC_SZ);
 	/* No user assigned yet */
-	task->user[0] = '\0';
-	strncpy(task->activity, "TO DO", ACTIVITY_DESC_SZ);
+	task->user = NULL;
+	task->activity = find_activity(board, "TO DO");
 	task->start = 0;
 	task->duration = duration;
 
@@ -129,23 +155,51 @@ int add_task(struct kanban* board, int duration, char desc[]) {
 }
 
 /* Adds a user to a kanban board */
-int add_user(struct kanban* board, char name[]) {
+int add_user(struct kanban* board, const char* name) {
 	int i;
 
 	/* Search for an empty slot and check if the name is duplicated */
 	for (i = 0; board->users[i][0] != '\0' && i < MAX_USER_COUNT; ++i) {
 		if (strncmp(board->users[i], name, USER_NAME_SZ) == 0) {
-			printf("user already exists\n");
+			puts("user already exists");
 			return 0;
 		}
 	}
 
 	if (i >= MAX_USER_COUNT) {
-		printf("too many users\n");
+		puts("too many users");
 		return 0;
 	}
 
 	strncpy(board->users[i], name, USER_NAME_SZ);
+	return 1;
+}
+
+/* Adds an activity to a kanban board */
+int add_activity(struct kanban* board, const char* desc) {
+	int i;
+
+	/* Search for an empty slot and check if the name is duplicated */
+	for (i = 0; board->activities[i][0] != '\0' && i < MAX_ACTIVITY_COUNT; ++i) {
+		if (strncmp(board->activities[i], desc, ACTIVITY_DESC_SZ) == 0) {
+			puts("duplicate activity");
+			return 0;
+		}
+	}
+
+	if (i >= MAX_ACTIVITY_COUNT) {
+		puts("too many activities");
+		return 0;
+	}
+
+	for (i = 0; i < ACTIVITY_DESC_SZ && desc[i] != '\0'; ++i) {
+		if ('a' <= desc[i] && desc[i] <= 'z') {
+			puts("invalid description");
+			return 0;
+		}
+	}
+
+	strncpy(board->activities[i], desc, ACTIVITY_DESC_SZ);
 	return 1;
 }
 
@@ -162,34 +216,8 @@ struct task* find_task(struct kanban* board, int id) {
 	return NULL;
 }
 
-/* Checks if a user exists on a board */
-int find_user(struct kanban* board, char name[]) {
-	int i;
-
-	for (i = 0; board->users[i][0] != '\0' && i < MAX_USER_COUNT; ++i) {
-		if (strncmp(board->users[i], name, USER_NAME_SZ) == 0) {
-			return 1;
-		}
-	}
-
-	return 0;
-}
-
-/* Checks if a activity exists on a board */
-int find_activity(struct kanban* board, char activity[]) {
-	int i;
-
-	for (i = 0; board->activities[i][0] != '\0' && i < MAX_ACTIVITY_COUNT; ++i) {
-		if (strncmp(board->activities[i], activity, ACTIVITY_DESC_SZ) == 0) {
-			return 1;
-		}
-	}
-
-	return 0;
-}
-
 /* Moves a task on a kanban board */
-int move_task(struct kanban* board, int id, char user[], char activity[]) {
+int move_task(struct kanban* board, int id, const char* usr, const char* act) {
 	int diff;
 	struct task* task = find_task(board, id);
 
@@ -198,36 +226,40 @@ int move_task(struct kanban* board, int id, char user[], char activity[]) {
 		return 0;
 	}
 
-	if (strncmp("TO DO", activity, ACTIVITY_DESC_SZ) == 0) {
+	if (strncmp("TO DO", act, ACTIVITY_DESC_SZ) == 0) {
 		puts("task already started");
 		return 0;	
 	}
 
-	/* Check if user exists */
-	if (!find_user(board, user)) {
+	/* Check if user exists and get pointer to data */
+	if ((usr = find_user(board, usr)) == NULL) {
 		puts("no such user");
 		return 0;	
 	}
 
-	/* Check if activity exists */
-	if (!find_activity(board, activity)) {
+	/* Check if activity exists and get pointer to data */
+	if ((act = find_activity(board, act)) == NULL) {
 		puts("no such activity");
 		return 0;	
 	}
 
-	strncpy(task->user, user, USER_NAME_SZ);
-	strncpy(task->activity, activity, ACTIVITY_DESC_SZ);
+	if (strncmp(task->activity, "TO DO", ACTIVITY_DESC_SZ) == 0) {
+		task->start = board->time;
+	}
+
+	task->user = usr;
+	task->activity = act;
 
 	if (strncmp(task->activity, "DONE", ACTIVITY_DESC_SZ) == 0) {
 		diff = board->time - task->start;
-		printf("duration=%d slack=%d\n", diff, task->duration - diff);
+		printf("duration=%d slack=%d\n", diff, diff - task->duration);
 	}
 
 	return 1;
 }
 
-/* Prints a task */
-void print_task(struct task* task) {
+/* Prints a task with l command format */
+void print_task_l(struct task* task) {
 	/* Format: <id> <activity> #<duration> <description> */
 	printf(
 		"%d %.*s #%d %.*s\n",
@@ -238,12 +270,71 @@ void print_task(struct task* task) {
 	);
 }
 
+/* Prints a task with d command format */
+void print_task_d(struct task* task) {
+	/* Format: <id> <activity> #<duration> <description> */
+	printf(
+		"%d %d %.*s\n",
+		task->id,
+		task->start,
+		TASK_DESC_SZ, task->desc
+	);
+}
+
 /* Print all of the tasks in lexicographical order */
 void list_tasks(struct kanban* board) {
 	int i;
 	for (i = 0; i < board->task_count; ++i) {
-		print_task(&board->tasks[i]);
+		print_task_l(&board->tasks[i]);
 	}
+}
+
+/* Print all of the tasks in lexicographical order */
+int list_activity_tasks(struct kanban* board, const char* activity) {
+	int i, changed, temp;
+	struct task* lhs;
+	struct task* rhs;
+	/*
+		Indexes of the tasks in this activity, must be static to prevent stack
+		overflow. It could also be declared globally but I decided that I
+		didn't want to pollute the global scope. Since this isn't meant to be
+		thread safe, using static variables here isn't a problem.
+	 */
+	static int act_tasks[MAX_ACTIVITY_COUNT], count = 0;
+
+	if (find_activity(board, activity) == NULL) {
+		puts("no such activity");
+		return 0;
+	}
+
+	for (i = 0; i < board->task_count; ++i) {
+		if (strncmp(board->tasks[i].activity, activity, ACTIVITY_DESC_SZ) == 0) {
+			act_tasks[count++] = i;
+		}
+	}
+
+	/* Bubble sort tasks */
+	do {
+		changed = 0;
+		for (i = 1; i < count; ++i) {
+			lhs = &board->tasks[act_tasks[i - 1]];
+			rhs = &board->tasks[act_tasks[i]];
+			if (lhs->start > rhs->start ||
+				(lhs->start == rhs->start && act_tasks[i - 1] > act_tasks[i])) {
+				/* Swap tasks */
+				temp = act_tasks[i];
+				act_tasks[i] = act_tasks[i - 1];
+				act_tasks[i - 1] = temp;
+				changed = 1;
+			}
+		}
+	} while (changed);
+	
+	for (i = 0; i < count; ++i) {
+		print_task_d(&board->tasks[act_tasks[i]]);
+	}
+
+	return 1;
 }
 
 /* Print all of the users in creation order */
@@ -254,8 +345,16 @@ void list_users(struct kanban* board) {
 	}
 }
 
+/* Print all of the activities in creation order */
+void list_activities(struct kanban* board) {
+	int i;
+	for (i = 0; board->activities[i][0] != '\0' && i < MAX_ACTIVITY_COUNT; ++i) {
+		printf("%.*s\n", ACTIVITY_DESC_SZ, board->activities[i]);
+	}
+}
+
 /* Reads either a task or activity description from stdin */
-void read_desc(char desc[], int size) {
+int read_desc(char* desc, int size) {
 	/* Index of the last character read */
 	int index = -1;
 	/* Index of the last non whitespace character */
@@ -275,14 +374,20 @@ void read_desc(char desc[], int size) {
 		}
 	}
 
+	if (index == -1) {
+		return 0;
+	}
+
 	/* Trim whitespace at the end of the stream */
 	if (last_nws < size - 1) {
 		desc[last_nws + 1] = '\0';
 	}
+
+	return 1;
 }
 
 /* Tries to read a username from stdin */
-int read_username(char name[], int size) {
+int read_username(char* name, int size) {
 	/* Index of the last character read */
 	int index = -1;
 	int c;
@@ -331,7 +436,7 @@ int read_l_command(struct kanban* board) {
 				printf("%d: no such task\n", id);
 				return STATUS_ERR;
 			}
-			print_task(task);
+			print_task_l(task);
 			empty = 0;
 			id = -1;
 		}
@@ -351,7 +456,7 @@ int read_l_command(struct kanban* board) {
 			printf("%d: no such task\n", id);
 			return STATUS_ERR;
 		}
-		print_task(task);
+		print_task_l(task);
 		empty = 0;
 	}
 
@@ -411,11 +516,45 @@ int read_m_command(struct kanban* board) {
 	return STATUS_OK;
 }
 
+/* Reads and executes a 'd' command from stdin */
+int read_d_command(struct kanban* board) {
+	char activity[ACTIVITY_DESC_SZ];
+	read_desc(activity, ACTIVITY_DESC_SZ);
+
+	if (!list_activity_tasks(board, activity)) {
+		return STATUS_ERR;
+	}
+
+	return STATUS_OK;
+}
+
+/* Reads and executes a 'a' command from stdin */
+int read_a_command(struct kanban* board) {
+	char desc[ACTIVITY_DESC_SZ];
+
+	if (read_desc(desc, ACTIVITY_DESC_SZ)) {
+		/* Add activity to board */
+		if (!add_activity(board, desc)) {
+			return STATUS_ERR;
+		}
+	}
+	else {
+		/* Print list of activities */
+		list_activities(board);
+	}
+
+	return STATUS_OK;
+}
+
 /* TODO */
 int main() {
-	int c, status;
-	/* Kanban board */
-	struct kanban board;
+	int c, status = STATUS_OK;
+	/*
+		Kanban board, must be static to prevent stack overflow. It could also
+		be declared globally but I decided that I didn't want to pollute the
+		global scope.
+	*/
+	static struct kanban board;
 
 	init_kanban(&board);
 
@@ -442,9 +581,17 @@ int main() {
 			/* Move task */
 			status = read_m_command(&board);
 			break;
+		case 'd':
+			/* List tasks in activity */
+			status = read_d_command(&board);
+			break;
+		case 'a':
+			/* Add activity / list actvities */
+			status = read_a_command(&board);
+			break;
 
 		default:
-			/* Ignore unknown character/whitespace */
+			/* Ignore unknown character / whitespace */
 			break;
 		}
 	}
