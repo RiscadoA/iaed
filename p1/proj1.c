@@ -61,9 +61,9 @@ struct task {
 	int id;
 	/* Task description. */
 	char desc[TASK_DESC_SZ];
-	/* User who is responsible for the task. */
+	/* Pointer to user which is responsible for the task. */
 	const char* user;
-	/* Activity where the task is placed. */
+	/* Pointer to activity where the task is placed. */
 	const char* activity;
 	/* Predicted task completion duration. */
 	int duration;
@@ -73,7 +73,7 @@ struct task {
 
 /* Contains information about a kanban board. */
 struct kanban {
-	/* Tasks in the kanban board. */
+	/* Tasks in the kanban board, always sorted by description. */
 	struct task tasks[MAX_TASK_COUNT];
 	/* Number of tasks in the kanban board. */
 	int task_count;
@@ -83,7 +83,7 @@ struct kanban {
 	char users[MAX_USER_COUNT][USER_NAME_SZ];
 	/* Activities in the kanban board. */
 	char activities[MAX_ACTIVITY_COUNT][ACTIVITY_DESC_SZ];
-	/* Array used to sort printed tasks in an activity. */
+	/* Auxiliary array used to sort printed tasks in an activity. */
 	int activity_order[MAX_TASK_COUNT];
 };
 
@@ -94,9 +94,8 @@ void init_kanban(struct kanban* board) {
 	board->task_count = 0;
 	board->time = 0;
 
-	for (i = 0; i < MAX_USER_COUNT; ++i) {
+	for (i = 0; i < MAX_USER_COUNT; ++i)
 		board->users[i][0] = '\0';
-	}
 
 	/* Set default activities. */
 	strncpy(board->activities[0], TO_DO_STR, ACTIVITY_DESC_SZ);
@@ -263,9 +262,8 @@ void list_activity_tasks(struct kanban* board, const char* activity) {
 void list_users(struct kanban* board) {
 	int i;
 
-	for (i = 0; board->users[i][0] != '\0' && i < MAX_USER_COUNT; ++i) {
+	for (i = 0; board->users[i][0] != '\0' && i < MAX_USER_COUNT; ++i)
 		printf(USER_FORMAT, USER_NAME_SZ, board->users[i]);
-	}
 }
 
 /*
@@ -345,20 +343,17 @@ void add_user(struct kanban* board, const char* name) {
 	int i;
 
 	/* Search for an empty slot and check if the name is duplicated. */
-	for (i = 0; board->users[i][0] != '\0' && i < MAX_USER_COUNT; ++i) {
+	for (i = 0; board->users[i][0] != '\0' && i < MAX_USER_COUNT; ++i)
 		if (strncmp(board->users[i], name, USER_NAME_SZ) == 0) {
 			puts(USER_ALREADY_EXISTS_STR);
 			return;
 		}
-	}
 
 	/* Check if an empty slot was found. */
-	if (i >= MAX_USER_COUNT) {
+	if (i >= MAX_USER_COUNT)
 		puts(TOO_MANY_USERS_STR);
-		return;
-	}
-
-	strncpy(board->users[i], name, USER_NAME_SZ);
+	else
+		strncpy(board->users[i], name, USER_NAME_SZ);
 }
 
 /*
@@ -442,13 +437,12 @@ void move_task(struct kanban* b, int id, const char* usr, const char* act) {
  * stdout and the operation is canceled.
  */
 void advance_time(struct kanban* board, int duration) {
-	if (duration < 0) {
+	if (duration < 0)
 		puts(INVALID_TIME_STR);
-		return;
-	}
-	
-	board->time += duration;
-	printf(TIME_FORMAT, board->time);
+	else {
+		board->time += duration;
+		printf(TIME_FORMAT, board->time);
+	}	
 }
 
 /*
@@ -490,22 +484,18 @@ int read_desc(char* desc, int size) {
 	while ((c = getchar()) != '\n') { /* While a newline isn't found. */
 		if (isspace(c)) {
 			/* Trim whitespace at the beginning of the stream. */
-			if (index != -1 && index < size - 1) {
+			if (index != -1 && index < size - 1)
 				desc[++index] = c;
-			}
 		}
-		else if (index < size - 1) {
+		else if (index < size - 1)
 			desc[++index] = c;
-		}
 	}
 
-	if (index == -1) { /* If no description was found, return 0. */
+	if (index == -1) /* If no description was found, return 0. */
 		return 0;
-	}
 
-	if (index < size - 1) { /* Insert terminating null character if needed. */
+	if (index < size - 1) /* Insert terminating null character if needed. */
 		desc[index + 1] = '\0';
-	}
 
 	return 1;
 }
@@ -520,19 +510,13 @@ int read_username(char* name, int size) {
 	int c;
 
 	/* While a newline isn't found and no whitespace is found after the name. */
-	while ((c = getchar()) != '\n') {
-		if (isspace(c) && index != -1) {
-			break;
-		}
-		else if (!isspace(c) && index < size - 1) {
+	while ((c = getchar()) != '\n' && !(isspace(c) && index != -1))
+		if (!isspace(c) && index < size - 1)
 			name[++index] = c;
-		}
-	}
 
 	/* Insert terminating null character if needed. */
-	if (index < size - 1) {
+	if (index < size - 1)
 		name[index + 1] = '\0';
-	}
 
 	return index != -1;
 }
@@ -566,18 +550,15 @@ void read_l_command(struct kanban* board) {
 	while (read_id(&id)) {
 		empty = 0;
 		task = find_task(board, id);
-		if (task == NULL) {
+		if (task == NULL)
 			printf(NO_SUCH_TASK_FORMAT, id);
-		}
-		else {
-			print_task_1(task);				
-		}
+		else
+			print_task_1(task);
 	}
 
 	/* If no IDs are provided, list all tasks. */
-	if (empty) {
+	if (empty)
 		list_all_tasks(board);
-	}
 }
 
 /*
@@ -600,14 +581,10 @@ void read_n_command(struct kanban* board) {
 void read_u_command(struct kanban* board) {
 	char name[USER_NAME_SZ];
 
-	if (read_username(name, USER_NAME_SZ)) {
-		/* Add user to board. */
-		add_user(board, name);
-	}
-	else {
-		/* Print list of users. */
-		list_users(board);
-	}
+	if (read_username(name, USER_NAME_SZ))
+		add_user(board, name); /* Add user to board. */
+	else
+		list_users(board); /* Print list of users. */
 }
 
 /*
@@ -644,14 +621,10 @@ void read_d_command(struct kanban* board) {
 void read_a_command(struct kanban* board) {
 	char desc[ACTIVITY_DESC_SZ];
 
-	if (read_desc(desc, ACTIVITY_DESC_SZ)) {
-		/* Add activity to board. */
-		add_activity(board, desc);
-	}
-	else {
-		/* Print list of activities. */
-		list_activities(board);
-	}
+	if (read_desc(desc, ACTIVITY_DESC_SZ))
+		add_activity(board, desc); /* Add activity to board. */
+	else
+		list_activities(board); /* Print list of activities. */
 }
 
 /*
@@ -698,9 +671,8 @@ int main() {
 	init_kanban(&board);
 
 	/* While q isn't entered. */
-	while ((c = getchar()) != 'q') {
+	while ((c = getchar()) != 'q')
 		read_command(&board, c);
-	}
 
 	return 0;
 }
