@@ -463,14 +463,15 @@ void move_task(struct kanban* board, int id, const char* usr, const char* act) {
 		task->start = board->time;
 	}
 
-	task->user = usr;
-	task->activity = act;
-
 	/* Check if the task is done. */
-	if (strncmp(task->activity, DONE_STR, ACTIVITY_DESC_SZ) == 0) {
+	if (strncmp(task->activity, DONE_STR, ACTIVITY_DESC_SZ) != 0 &&
+	    strncmp(act, DONE_STR, ACTIVITY_DESC_SZ) == 0) {
 		diff = board->time - task->start;
 		printf(TASK_DONE_FORMAT, diff, diff - task->duration);
 	}
+
+	task->user = usr;
+	task->activity = act;
 }
 
 /*
