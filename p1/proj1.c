@@ -106,9 +106,8 @@ void init_kanban(struct kanban* board) {
 	strncpy(board->activities[0], TO_DO_STR, ACTIVITY_DESC_SZ);
 	strncpy(board->activities[1], IN_PROGRESS_STR, ACTIVITY_DESC_SZ);
 	strncpy(board->activities[2], DONE_STR, ACTIVITY_DESC_SZ);
-	for (i = 3; i < MAX_ACTIVITY_COUNT; ++i) {
+	for (i = 3; i < MAX_ACTIVITY_COUNT; ++i)
 		board->activities[i][0] = '\0';
-	}
 }
 
 /* Initializes a task. */
@@ -128,11 +127,9 @@ void init_task(struct task* task, int id, int duration, const char* desc) {
 const char* find_user(struct kanban* board, const char* name) {
 	int i;
 
-	for (i = 0; board->users[i][0] != '\0' && i < MAX_USER_COUNT; ++i) {
-		if (strncmp(board->users[i], name, USER_NAME_SZ) == 0) {
+	for (i = 0; board->users[i][0] != '\0' && i < MAX_USER_COUNT; ++i)
+		if (strncmp(board->users[i], name, USER_NAME_SZ) == 0)
 			return board->users[i];
-		}
-	}
 
 	return NULL;
 }
@@ -144,11 +141,9 @@ const char* find_user(struct kanban* board, const char* name) {
 const char* find_activity(struct kanban* board, const char* activity) {
 	int i;
 
-	for (i = 0; board->activities[i][0] != '\0' && i < MAX_ACTIVITY_COUNT; ++i) {
-		if (strncmp(board->activities[i], activity, ACTIVITY_DESC_SZ) == 0) {
+	for (i = 0; board->activities[i][0] != '\0' && i < MAX_ACTIVITY_COUNT; ++i)
+		if (strncmp(board->activities[i], activity, ACTIVITY_DESC_SZ) == 0)
 			return board->activities[i];
-		}
-	}
 
 	return NULL;
 }
@@ -160,11 +155,9 @@ const char* find_activity(struct kanban* board, const char* activity) {
 struct task* find_task(struct kanban* board, int id) {
 	int i;
 	
-	for (i = 0; i < board->task_count; ++i) {
-		if (board->tasks[i].id == id) {
+	for (i = 0; i < board->task_count; ++i)
+		if (board->tasks[i].id == id)
 			return &board->tasks[i];
-		}
-	}
 
 	return NULL;
 }
@@ -201,9 +194,8 @@ void list_all_tasks(struct kanban* board) {
 	 * Since the tasks are always sorted by their description, no sorting
 	 * is necessary here. 
 	 */
-	for (i = 0; i < board->task_count; ++i) {
+	for (i = 0; i < board->task_count; ++i)
 		print_task_1(&board->tasks[i]);
-	}
 }
 
 /*
@@ -256,19 +248,16 @@ void list_activity_tasks(struct kanban* board, const char* activity) {
 	}
 
 	/* Search for tasks which are in the activity. */
-	for (i = 0; i < board->task_count; ++i) {
-		if (strncmp(board->tasks[i].activity, activity, ACTIVITY_DESC_SZ) == 0) {
+	for (i = 0; i < board->task_count; ++i)
+		if (strncmp(board->tasks[i].activity, activity, ACTIVITY_DESC_SZ) == 0)
 			order[count++] = i;
-		}
-	}
 
 	/* Sort the indexes of the tasks in the activity. */
 	sort_activity_tasks(board, count);
 	
 	/* Print tasks in the activity. */
-	for (i = 0; i < count; ++i) {
+	for (i = 0; i < count; ++i)
 		print_task_2(&board->tasks[order[i]]);
-	}
 }
 
 /*
@@ -290,9 +279,30 @@ void list_users(struct kanban* board) {
 void list_activities(struct kanban* board) {
 	int i;
 	
-	for (i = 0; board->activities[i][0] != '\0' && i < MAX_ACTIVITY_COUNT; ++i) {
+	for (i = 0; board->activities[i][0] != '\0' && i < MAX_ACTIVITY_COUNT; ++i)
 		printf(ACTIVITY_FORMAT, ACTIVITY_DESC_SZ, board->activities[i]);
+}
+
+/*
+ * Returns the index of the first task which has a lexigraphically larger
+ * description than the one passed as argument.
+ * If a task with the same description is found, -1 is returned.
+ */
+int search_task_index(struct kanban* board, const char* desc) {
+	int i = 0, cmp = -1;
+
+	while (i < board->task_count) {
+		cmp = strncmp(board->tasks[i].desc, desc, TASK_DESC_SZ);
+		if (cmp >= 0) {
+			break;
+		}
+		i = i + 1;
 	}
+
+	if (cmp == 0)
+		return -1; /* Duplicate description. */
+	
+	return i;
 }
 
 /*
@@ -305,48 +315,28 @@ void list_activities(struct kanban* board) {
  * Otherwise, if the duration isn't a positive integer, INVALID_DURATION_STR is
  * sent to stdout and the operation is canceled.
  * Otherwise, TASK_ID_FORMAT is sent to stdout formatted with the new task ID.
+ * 
+ * The task array is always sorted, so we need to find where to insert a
+ * new element. This could be done using binary search, but since we're
+ * going to have to move the array forward it will be O(N) anyway (assuming
+ * memmove is O(N)). So, a simple linear search will suffice.
  */
 void add_task(struct kanban* board, int duration, const char* desc) {
-	int i, cmp;
+	int i = -1;
 
-	/* Check if there are too many tasks. */
-	if (board->task_count == MAX_TASK_COUNT) {
+	if (board->task_count == MAX_TASK_COUNT) /* Check for too many tasks. */
 		puts(TOO_MANY_TASKS_STR);
-		return;
-	}
-
-	/*
-	 * The task array is always sorted, so we need to find where to insert a
-	 * new element. This could be done using binary search, but since we're
-	 * going to have to move the array forward it will be O(N) anyway (assuming
-	 * memmove is O(N)). So, a simple linear search will suffice.
-	 */
-
-	for (i = 0, cmp = -1; i < board->task_count && cmp < 0; ++i) {
-		cmp = strncmp(board->tasks[i].desc, desc, TASK_DESC_SZ);
-		/* Check if there is already a task with this description. */
-		if (cmp == 0) {
-			puts(DUPLICATE_DESC_STR);
-			return;
-		}
-	}
-
-	/* Check it the duration is valid. */
-	if (duration <= 0) {
+	else if ((i = search_task_index(board, desc)) == -1) /* If duplicate. */
+		puts(DUPLICATE_DESC_STR);
+	else if (duration <= 0) /* Check if the duration is valid. */
 		puts(INVALID_DURATION_STR);
-		return;
+	else {
+		if (i != board->task_count) /* Move array for new task. */
+			memmove(&board->tasks[i + 1], &board->tasks[i],
+					(board->task_count - i) * sizeof(struct task));
+		init_task(&board->tasks[i], ++board->task_count, duration, desc);
+		printf(TASK_ID_FORMAT, board->task_count);
 	}
-
-	/* Move the array forward to make space for the new task. */
-	if (board->task_count > 0 && cmp > 0) {
-		--i;
-		memmove(&board->tasks[i + 1], &board->tasks[i],
-				(board->task_count - i) * sizeof(struct task));
-	}
-
-	/* Add task to board. */
-	init_task(&board->tasks[i], ++board->task_count, duration, desc);
-	printf(TASK_ID_FORMAT, board->task_count);
 }
 
 /*
@@ -391,28 +381,23 @@ void add_activity(struct kanban* board, const char* desc) {
 	int i, j;
 
 	/* Search for an empty slot and check if the name is duplicated. */
-	for (i = 0; board->activities[i][0] != '\0' && i < MAX_ACTIVITY_COUNT; ++i) {
+	for (i = 0; board->activities[i][0] != '\0' && i < MAX_ACTIVITY_COUNT; ++i)
 		if (strncmp(board->activities[i], desc, ACTIVITY_DESC_SZ) == 0) {
 			puts(DUPLICATE_ACTIVITY_STR);
 			return;
 		}
-	}
 
 	/* Check if the activity description is valid. */
-	for (j = 0; j < ACTIVITY_DESC_SZ && desc[j] != '\0'; ++j) {
+	for (j = 0; j < ACTIVITY_DESC_SZ && desc[j] != '\0'; ++j)
 		if (islower(desc[j])) {
 			puts(INVALID_DESC_STR);
 			return;
 		}
-	}
 
-	/* Check if an empty slot was found. */
-	if (i >= MAX_ACTIVITY_COUNT) {
+	if (i >= MAX_ACTIVITY_COUNT) /* Check if an empty slot was found. */
 		puts(TOO_MANY_ACTIVITIES_STR);
-		return;
-	}
-
-	strncpy(board->activities[i], desc, ACTIVITY_DESC_SZ);
+	else
+		strncpy(board->activities[i], desc, ACTIVITY_DESC_SZ);
 }
 
 /*
@@ -430,48 +415,29 @@ void add_activity(struct kanban* board, const char* desc) {
  * Otherwise, if the activity isn't on the board, NO_SUCH_ACTIVITY_STR is sent
  * to stdout and the operation is canceled.
  */
-void move_task(struct kanban* board, int id, const char* usr, const char* act) {
-	int diff;
+void move_task(struct kanban* b, int id, const char* usr, const char* act) {
 	struct task* task;
 
-	/* Check if the task exists and get pointer to data. */
-	if ((task = find_task(board, id)) == NULL) {
+	if ((task = find_task(b, id)) == NULL) /* Get task. */
 		puts(NO_SUCH_TASK_STR);
-		return;
-	}
-
-	/* Check if the task had already been started. */
-	if (strncmp(act, TO_DO_STR, ACTIVITY_DESC_SZ) == 0) {
-		puts(TASK_ALREADY_STARTED_STR);
-		return;	
-	}
-
-	/* Check if the user exists and get pointer to data. */
-	if ((usr = find_user(board, usr)) == NULL) {
+	else if (strncmp(act, TO_DO_STR, ACTIVITY_DESC_SZ) == 0)
+		puts(TASK_ALREADY_STARTED_STR); /* Task had already been started. */
+	else if ((usr = find_user(b, usr)) == NULL) /* Get user. */
 		puts(NO_SUCH_USER_STR);
-		return;	
-	}
-
-	/* Check if the activity exists and get pointer to data. */
-	if ((act = find_activity(board, act)) == NULL) {
+	else if ((act = find_activity(b, act)) == NULL) /* Get activity. */
 		puts(NO_SUCH_ACTIVITY_STR);
-		return;
-	}
+	else {
+		if (strncmp(task->activity, TO_DO_STR, ACTIVITY_DESC_SZ) == 0)
+			task->start = b->time; /* Task is being started now. */
 
-	/* Check if the task is being started now. */
-	if (strncmp(task->activity, TO_DO_STR, ACTIVITY_DESC_SZ) == 0) {
-		task->start = board->time;
-	}
+		if (strncmp(task->activity, DONE_STR, ACTIVITY_DESC_SZ) != 0 &&
+			strncmp(act, DONE_STR, ACTIVITY_DESC_SZ) == 0) /* Task is done. */
+			printf(TASK_DONE_FORMAT, b->time - task->start,
+									 b->time - task->start - task->duration);
 
-	/* Check if the task is done. */
-	if (strncmp(task->activity, DONE_STR, ACTIVITY_DESC_SZ) != 0 &&
-	    strncmp(act, DONE_STR, ACTIVITY_DESC_SZ) == 0) {
-		diff = board->time - task->start;
-		printf(TASK_DONE_FORMAT, diff, diff - task->duration);
+		task->user = usr;
+		task->activity = act;
 	}
-
-	task->user = usr;
-	task->activity = act;
 }
 
 /*
@@ -501,33 +467,20 @@ int read_id(int* id) {
 
 	/* While a newline or a whitespace after the ID isn't found. */
 	while ((c = getchar()) != '\n' && !(isspace(c) && *id != -1)) {
-		if (c == '-') {
-			/*
-			 * Although IDs are never negative, invalid negative IDs may appear
-			 * on test cases.
-			 */
-			sign = -1;
-		}
+		if (c == '-')
+			sign = -1; /* Invalid negative IDs need to be handled. */
 		else if (c >= '0' && c <= '9') {
-			if (*id == -1) {
+			if (*id == -1)
 				*id = 0;
-			}
-
 			*id = 10 * *id + c - '0';
 		}
 	}
 
-	/*
-	 * Push the newline back into the stream so that the calling function 
-	 * can detect the end of the line.
-	 */
-	if (c == '\n') {
+	if (c == '\n') /* The newline is needed for the calling function. */
 		ungetc(c, stdin);
-	}
 	
-	if (*id == -1) {
+	if (*id == -1) /* If no ID was read, return 0. */
 		return 0;
-	}
 
 	*id *= sign;
 	return 1;
@@ -539,9 +492,8 @@ int read_id(int* id) {
  */
 int read_desc(char* desc, int size) {
 	int c, index = -1;
-
-	/* While a newline isn't found. */
-	while ((c = getchar()) != '\n') {
+	
+	while ((c = getchar()) != '\n') { /* While a newline isn't found. */
 		if (isspace(c)) {
 			/* Trim whitespace at the beginning of the stream. */
 			if (index != -1 && index < size - 1) {
@@ -553,12 +505,11 @@ int read_desc(char* desc, int size) {
 		}
 	}
 
-	if (index == -1) {
+	if (index == -1) { /* If no description was found, return 0. */
 		return 0;
 	}
 
-	/* Insert terminating null character if needed. */
-	if (index < size - 1) {
+	if (index < size - 1) { /* Insert terminating null character if needed. */
 		desc[index + 1] = '\0';
 	}
 
@@ -716,32 +667,25 @@ void read_a_command(struct kanban* board) {
  */
 void read_command(struct kanban* board, int c) {
 	switch (c) {
-	case 't':
-		/* Adds a task to a board. */
+	case 't': /* Adds a task to a board. */
 		read_t_command(board);
 		break;
-	case 'l':
-		/* Lists tasks. */
+	case 'l': /* Lists tasks. */
 		read_l_command(board);
 		break;
-	case 'n':
-		/* Advances time. */
+	case 'n': /* Advances time. */
 		read_n_command(board);
 		break;
-	case 'u':
-		/* Add user / list users. */
+	case 'u': /* Add user / list users. */
 		read_u_command(board);
 		break;
-	case 'm':
-		/* Move task. */
+	case 'm': /* Move task. */
 		read_m_command(board);
 		break;
-	case 'd':
-		/* List tasks in activity. */
+	case 'd': /* List tasks in activity. */
 		read_d_command(board);
 		break;
-	case 'a':
-		/* Add activity / list actvities. */
+	case 'a': /* Add activity / list actvities. */
 		read_a_command(board);
 		break;
 	}
