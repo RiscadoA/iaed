@@ -23,11 +23,7 @@
 /* The maximum number of activities supported. */
 #define MAX_ACTIVITY_COUNT 10
 
-/* Status codes used by the main and read command functions. */
-#define STATUS_OK 0
-#define STATUS_ERR -1
-
-/* String literals used. */
+/* String literals used for the default activities. */
 #define TO_DO_STR "TO DO"
 #define IN_PROGRESS_STR "IN PROGRESS"
 #define DONE_STR "DONE"
@@ -285,24 +281,22 @@ void list_activities(struct kanban* board) {
 
 /*
  * Returns the index of the first task which has a lexigraphically larger
- * description than the one passed as argument.
+ * description than the one passed as argument. If no task is found,
+ * board->task_count is returned.
  * If a task with the same description is found, -1 is returned.
  */
 int search_task_index(struct kanban* board, const char* desc) {
-	int i = 0, cmp = -1;
+	int i = 0, cmp;
 
-	while (i < board->task_count) {
+	for (i = 0; i < board->task_count; ++i) {
 		cmp = strncmp(board->tasks[i].desc, desc, TASK_DESC_SZ);
-		if (cmp >= 0) {
-			break;
-		}
-		i = i + 1;
+		if (cmp > 0)
+			return i; /* Found index, return it. */
+		else if (cmp == 0)
+			return -1; /* Duplicate description. */
 	}
 
-	if (cmp == 0)
-		return -1; /* Duplicate description. */
-	
-	return i;
+	return board->task_count; /* No task found. */
 }
 
 /*
