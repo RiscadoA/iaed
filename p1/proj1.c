@@ -39,6 +39,7 @@
 #define TASK_2_FORMAT "%d %d %.*s\n"
 #define USER_FORMAT "%.*s\n"
 #define ACTIVITY_FORMAT "%.*s\n"
+#define TIME_FORMAT "%d\n"
 
 /* Error string literals. */
 #define TOO_MANY_TASKS_STR "too many tasks"
@@ -52,6 +53,11 @@
 #define NO_SUCH_USER_STR "no such user"
 #define NO_SUCH_ACTIVITY_STR "no such activity"
 #define TASK_ALREADY_STARTED_STR "task already started"
+#define INVALID_TIME_STR "invalid time"
+#define INVALID_DURATION_STR "invalid duration"
+
+/* Error formatting string literals. */
+#define NO_SUCH_TASK_FORMAT "%d: no such task\n"
 
 /* Contains information about a task. */
 struct task {
@@ -201,34 +207,17 @@ void list_all_tasks(struct kanban* board) {
 }
 
 /*
- * Print all of the tasks in an activity sorted by starting time. If two tasks
- * have the same starting time, the task which is lexicographically smaller
- * appears first.
- * The tasks are printed with the format TASK_2_FORMAT.
- *
- * If the activity isn't on the board, NO_SUCH_ACTIVITY_STR is sent to stdout
- * and the operation is canceled.
+ * Sorts the indexes of the tasks stored on board->activity_order by starting
+ * time. If two tasks have the same starting time, the task which is
+ * lexicographically smaller appears first.
  */
-void list_activity_tasks(struct kanban* board, const char* activity) {
-	int i, changed, temp, count;
+void sort_activity_tasks(struct kanban* board, int count) {
+	int i, changed, temp;
 	int* order = board->activity_order;
 	struct task* lhs;
 	struct task* rhs;
 
-	/* Check if the activity exists. */
-	if (find_activity(board, activity) == NULL) {
-		puts(NO_SUCH_ACTIVITY_STR);
-		return;
-	}
-
-	/* Search for tasks which are in the activity. */
-	for (i = 0, count = 0; i < board->task_count; ++i) {
-		if (strncmp(board->tasks[i].activity, activity, ACTIVITY_DESC_SZ) == 0) {
-			order[count++] = i;
-		}
-	}
-
-	/* Bubble sort the indexes of the tasks in the activity. */
+	/* Bubble sort the indexes of the tasks. */
 	do {
 		changed = 0;
 		for (i = 1; i < count; ++i) {
@@ -245,6 +234,36 @@ void list_activity_tasks(struct kanban* board, const char* activity) {
 			}
 		}
 	} while (changed);
+}
+
+/*
+ * Print all of the tasks in an activity sorted by starting time. If two tasks
+ * have the same starting time, the task which is lexicographically smaller
+ * appears first.
+ * The tasks are printed with the format TASK_2_FORMAT.
+ *
+ * If the activity isn't on the board, NO_SUCH_ACTIVITY_STR is sent to stdout
+ * and the operation is canceled.
+ */
+void list_activity_tasks(struct kanban* board, const char* activity) {
+	int i, count = 0;
+	int* order = board->activity_order;
+
+	/* Check if the activity exists. */
+	if (find_activity(board, activity) == NULL) {
+		puts(NO_SUCH_ACTIVITY_STR);
+		return;
+	}
+
+	/* Search for tasks which are in the activity. */
+	for (i = 0; i < board->task_count; ++i) {
+		if (strncmp(board->tasks[i].activity, activity, ACTIVITY_DESC_SZ) == 0) {
+			order[count++] = i;
+		}
+	}
+
+	/* Sort the indexes of the tasks in the activity. */
+	sort_activity_tasks(board, count);
 	
 	/* Print tasks in the activity. */
 	for (i = 0; i < count; ++i) {
@@ -252,7 +271,10 @@ void list_activity_tasks(struct kanban* board, const char* activity) {
 	}
 }
 
-/* Print all of the users in creation order. */
+/*
+ * Print all of the users in creation order.
+ * The users are printed with the format USER_FORMAT.
+ */
 void list_users(struct kanban* board) {
 	int i;
 
@@ -261,7 +283,10 @@ void list_users(struct kanban* board) {
 	}
 }
 
-/* Print all of the activities in creation order. */
+/*
+ * Print all of the activities in creation order.
+ * The activities are printed with the format ACTIVITY_FORMAT.
+ */
 void list_activities(struct kanban* board) {
 	int i;
 	
@@ -277,6 +302,8 @@ void list_activities(struct kanban* board) {
  * and the operation is canceled.
  * Otherwise, if there is already a task with the same description,
  * DUPLICATE_DESC_STR is sent to stdout and the operation is canceled.
+ * Otherwise, if the duration isn't a positive integer, INVALID_DURATION_STR is
+ * sent to stdout and the operation is canceled.
  * Otherwise, TASK_ID_FORMAT is sent to stdout formatted with the new task ID.
  */
 void add_task(struct kanban* board, int duration, const char* desc) {
@@ -295,25 +322,26 @@ void add_task(struct kanban* board, int duration, const char* desc) {
 	 * memmove is O(N)). So, a simple linear search will suffice.
 	 */
 
-	for (i = 0, cmp = -1; i < board->task_count; ++i) {
+	for (i = 0, cmp = -1; i < board->task_count && cmp < 0; ++i) {
 		cmp = strncmp(board->tasks[i].desc, desc, TASK_DESC_SZ);
 		/* Check if there is already a task with this description. */
 		if (cmp == 0) {
 			puts(DUPLICATE_DESC_STR);
 			return;
 		}
-		/*
-		 * If the stored task is 'larger', insert the new one before it by
-		 * moving the array forward to make space for the new task.
-		 */
-		else if (cmp > 0) {
-			memmove(
-				&board->tasks[i + 1],
-				&board->tasks[i],
-				(board->task_count - i) * sizeof(struct task)
-			);
-			break;
-		}
+	}
+
+	/* Check it the duration is valid. */
+	if (duration <= 0) {
+		puts(INVALID_DURATION_STR);
+		return;
+	}
+
+	/* Move the array forward to make space for the new task. */
+	if (board->task_count > 0 && cmp > 0) {
+		--i;
+		memmove(&board->tasks[i + 1], &board->tasks[i],
+				(board->task_count - i) * sizeof(struct task));
 	}
 
 	/* Add task to board. */
@@ -446,18 +474,68 @@ void move_task(struct kanban* board, int id, const char* usr, const char* act) {
 }
 
 /*
+ * Advances time on a kanban board and TIME_FORMAT is sent to stdout formatted
+ * with the new current time.
+ * 
+ * If the duration is negative, INVALID_TIME_STR is sent to
+ * stdout and the operation is canceled.
+ */
+void advance_time(struct kanban* board, int duration) {
+	if (duration < 0) {
+		puts(INVALID_TIME_STR);
+	}
+	
+	board->time += duration;
+	printf(TIME_FORMAT, board->time);
+}
+
+/*
+ * Reads an ID from stdin.
+ * If no ID is found, 0 is returned. Otherwise the ID is returned. 
+ */
+int read_id() {
+	int c, id = -1;
+
+	/* While a newline or a whitespace after the ID isn't found. */
+	while ((c = getchar()) != '\n') {
+		if (isspace(c) && id != -1) {
+			return id;
+		}
+		else if (c >= '0' && c <= '9') {
+			if (id == -1) {
+				id = 0;
+			}
+
+			id = 10 * id + c - '0';
+		}
+	}
+
+	/*
+	 * Push the newline back into the stream so that the calling function 
+	 * can detect the end of the line.
+	 */
+	if (c == '\n') {
+		ungetc(c, stdin);
+	}
+	
+	return id == -1 ? 0 : id;
+}
+
+/*
  * Reads either a task or activity description from stdin.
+ * If no description is found, 0 is returned. Otherwise 1 is returned. 
  */
 int read_desc(char* desc, int size) {
-	/* Index of the last character read */
+	/* Index of the last character read. */
 	int index = -1;
-	/* Index of the last non whitespace character */
+	/* Index of the last non whitespace character. */
 	int last_nws = 0;
 	int c;
 
+	/* While a newline isn't found. */
 	while ((c = getchar()) != '\n') {
 		if (isspace(c)) {
-			/* Trim whitespace at the beginning of the stream */
+			/* Trim whitespace at the beginning of the stream. */
 			if (index != -1 && index < size - 1) {
 				desc[++index] = c;
 			}
@@ -472,7 +550,7 @@ int read_desc(char* desc, int size) {
 		return 0;
 	}
 
-	/* Trim whitespace at the end of the stream */
+	/* Insert terminating null character if needed. */
 	if (last_nws < size - 1) {
 		desc[last_nws + 1] = '\0';
 	}
@@ -480,12 +558,16 @@ int read_desc(char* desc, int size) {
 	return 1;
 }
 
-/* Tries to read a username from stdin */
+/*
+ * Tries to read a username from stdin.
+ * If no username is found, 0 is returned. Otherwise 1 is returned. 
+ */
 int read_username(char* name, int size) {
-	/* Index of the last character read */
+	/* Index of the last character read. */
 	int index = -1;
 	int c;
 
+	/* While a newline isn't found and no whitespace is found after the name. */
 	while ((c = getchar()) != '\n') {
 		if (isspace(c) && index != -1) {
 			break;
@@ -495,6 +577,7 @@ int read_username(char* name, int size) {
 		}
 	}
 
+	/* Insert terminating null character if needed. */
 	if (index < size - 1) {
 		name[index + 1] = '\0';
 	}
@@ -502,7 +585,11 @@ int read_username(char* name, int size) {
 	return index != -1;
 }
 
-/* Reads and executes a 't' command from stdin */
+/*
+ * Reads and executes a 't' command from stdin, which adds a task to a kanban
+ * board.
+ * Input format: <duration> <description> 
+ */
 void read_t_command(struct kanban* board) {
 	int duration;
 	char desc[TASK_DESC_SZ];
@@ -512,77 +599,70 @@ void read_t_command(struct kanban* board) {
 	add_task(board, duration, desc);
 }
 
-/* Reads and executes a 'l' command from stdin */
+/*
+ * Reads and executes a 'l' command from stdin, which prints either the tasks
+ * passed to it or if none is passed prints all tasks in lexicographical order.
+ * If a task is not found from its ID NO_SUCH_TASK_FORMAT is sent to stdout
+ * formatted with the ID.
+ * Input format: [<id> <id> ... <id>]
+ */
 void read_l_command(struct kanban* board) {
-	int c, empty = 1, id = -1;
+	int empty = 1, id;
+	struct task* task;
 
-	while ((c = getchar()) != '\n') {
-		if (isspace(c) && id != -1) {
-			/* Search for task and print it */
-			struct task* task = find_task(board, id);
-			if (task == NULL) {
-				printf("%d: no such task\n", id);
-			}
-			else {
-				print_task_1(task);				
-			}
-			empty = 0;
-			id = -1;
-		}
-		else if (c >= '0' && c <= '9') {
-			if (id == -1) {
-				id = 0;
-			}
-
-			id = 10 * id + c - '0';
-		}
-	}
-
-	if (id != -1) {
-		/* Search for task and print it */
-		struct task* task = find_task(board, id);
+	/* Try to read IDs. */
+	while ((id = read_id())) {
+		empty = 0;
+		task = find_task(board, id);
 		if (task == NULL) {
-			printf("%d: no such task\n", id);
+			printf(NO_SUCH_TASK_FORMAT, id);
 		}
 		else {
-			print_task_1(task);
+			print_task_1(task);				
 		}
-		empty = 0;
 	}
 
-	/* If no IDs are provided, list all tasks */
+	/* If no IDs are provided, list all tasks. */
 	if (empty) {
 		list_all_tasks(board);
 	}
 }
 
-/* Reads and executes a 'n' command from stdin */
+/*
+ * Reads and executes a 'n' command from stdin, which advances the time in the
+ * board.
+ * Input format: <duration>
+ */
 void read_n_command(struct kanban* board) {
 	int duration;
-	scanf("%d", &duration);
-	if (duration < 0) {
-		puts("invalid time");
-	}
 
-	board->time += duration;
-	printf("%d\n", board->time);
+	scanf("%d", &duration);
+	advance_time(board, duration);
 }
 
-/* Reads and executes a 'u' command from stdin */
+/*
+ * Reads and executes a 'u' command from stdin, which either adds an user to
+ * the board or prints all of the users in creation order.
+ * Input format: [<username>]
+ */
 void read_u_command(struct kanban* board) {
 	char name[USER_NAME_SZ];
 
 	if (read_username(name, USER_NAME_SZ)) {
-		/* Add user to board */
+		/* Add user to board. */
 		add_user(board, name);
 	}
 	else {
-		/* Print list of users */
+		/* Print list of users. */
 		list_users(board);
 	}
 }
 
-/* Reads and executes a 'm' command from stdin */
+/*
+ * Reads and executes a 'm' command from stdin, which moves a task to another
+ * activity.
+ * Input format: <id> <username> <activity>
+ */
 void read_m_command(struct kanban* board) {
 	int id;
 	char user[USER_NAME_SZ], activity[ACTIVITY_DESC_SZ];
@@ -593,75 +673,88 @@ void read_m_command(struct kanban* board) {
 	move_task(board, id, user, activity);
 }
 
-/* Reads and executes a 'd' command from stdin */
+/*
+ * Reads and executes a 'd' command from stdin, which prints all tasks in an
+ * activity.
+ * Input format: <activity>
+ */
 void read_d_command(struct kanban* board) {
 	char activity[ACTIVITY_DESC_SZ];
 	read_desc(activity, ACTIVITY_DESC_SZ);
 	list_activity_tasks(board, activity);
 }
 
-/* Reads and executes a 'a' command from stdin */
+/*
+ * Reads and executes a 'a' command from stdin, which either adds an activity
+ * to the board or prints all activities on the board.
+ * Input format: [<activity>]
+ */
 void read_a_command(struct kanban* board) {
 	char desc[ACTIVITY_DESC_SZ];
 
 	if (read_desc(desc, ACTIVITY_DESC_SZ)) {
-		/* Add activity to board */
+		/* Add activity to board. */
 		add_activity(board, desc);
 	}
 	else {
-		/* Print list of activities */
+		/* Print list of activities. */
 		list_activities(board);
 	}
 }
 
-/* TODO */
+/*
+ * Tries to read a command from stdin. If the character passed is not a command
+ * character, the function doesn't do anything. Otherwise, the respective
+ * command is read and executed.
+ */
+void read_command(struct kanban* board, int c) {
+	switch (c) {
+	case 't':
+		/* Adds a task to a board. */
+		read_t_command(board);
+		break;
+	case 'l':
+		/* Lists tasks. */
+		read_l_command(board);
+		break;
+	case 'n':
+		/* Advances time. */
+		read_n_command(board);
+		break;
+	case 'u':
+		/* Add user / list users. */
+		read_u_command(board);
+		break;
+	case 'm':
+		/* Move task. */
+		read_m_command(board);
+		break;
+	case 'd':
+		/* List tasks in activity. */
+		read_d_command(board);
+		break;
+	case 'a':
+		/* Add activity / list actvities. */
+		read_a_command(board);
+		break;
+	}
+}
+
+/* Reads commands from stdin line by line and executes them. */
 int main() {
-	int c;
 	/*
 		Kanban board, must be static to prevent stack overflow. It could also
 		be declared globally but I decided that I didn't want to pollute the
 		global scope.
 	*/
 	static struct kanban board;
+	int c;
 
 	init_kanban(&board);
 
-	/* While q isn't entered and the program doesn't fail */
+	/* While q isn't entered. */
 	while ((c = getchar()) != 'q') {
-		switch (c) {
-		case 't':
-			/* Adds a task to a board */
-			read_t_command(&board);
-			break;
-		case 'l':
-			/* Lists tasks */
-			read_l_command(&board);
-			break;
-		case 'n':
-			/* Advances time */
-			read_n_command(&board);
-			break;
-		case 'u':
-			/* Add user / list users */
-			read_u_command(&board);
-			break;
-		case 'm':
-			/* Move task */
-			read_m_command(&board);
-			break;
-		case 'd':
-			/* List tasks in activity */
-			read_d_command(&board);
-			break;
-		case 'a':
-			/* Add activity / list actvities */
-			read_a_command(&board);
-			break;
-
-		default:
-			/* Ignore unknown character / whitespace */
-			break;
-		}
+		read_command(&board, c);
 	}
 
 	return 0;
