@@ -484,6 +484,7 @@ void move_task(struct kanban* board, int id, const char* usr, const char* act) {
 void advance_time(struct kanban* board, int duration) {
 	if (duration < 0) {
 		puts(INVALID_TIME_STR);
+		return;
 	}
 	
 	board->time += duration;
@@ -492,22 +493,27 @@ void advance_time(struct kanban* board, int duration) {
 
 /*
  * Reads an ID from stdin.
- * If no ID is found, 0 is returned. Otherwise the ID is returned. 
+ * If no ID is found, 0 is returned. Otherwise 1 is returned. 
  */
-int read_id() {
-	int c, id = -1;
+int read_id(int* id) {
+	int c, sign = 1;
+	*id = -1;
 
 	/* While a newline or a whitespace after the ID isn't found. */
-	while ((c = getchar()) != '\n') {
-		if (isspace(c) && id != -1) {
-			return id;
+	while ((c = getchar()) != '\n' && !(isspace(c) && *id != -1)) {
+		if (c == '-') {
+			/*
+			 * Although IDs are never negative, invalid negative IDs may appear
+			 * on test cases.
+			 */
+			sign = -1;
 		}
 		else if (c >= '0' && c <= '9') {
-			if (id == -1) {
-				id = 0;
+			if (*id == -1) {
+				*id = 0;
 			}
 
-			id = 10 * id + c - '0';
+			*id = 10 * *id + c - '0';
 		}
 	}
 
@@ -519,7 +525,12 @@ int read_id() {
 		ungetc(c, stdin);
 	}
 	
-	return id == -1 ? 0 : id;
+	if (*id == -1) {
+		return 0;
+	}
+
+	*id *= sign;
+	return 1;
 }
 
 /*
@@ -527,11 +538,7 @@ int read_id() {
  * If no description is found, 0 is returned. Otherwise 1 is returned. 
  */
 int read_desc(char* desc, int size) {
-	/* Index of the last character read. */
-	int index = -1;
-	/* Index of the last non whitespace character. */
-	int last_nws = 0;
-	int c;
+	int c, index = -1;
 
 	/* While a newline isn't found. */
 	while ((c = getchar()) != '\n') {
@@ -543,7 +550,6 @@ int read_desc(char* desc, int size) {
 		}
 		else if (index < size - 1) {
 			desc[++index] = c;
-			last_nws = index;
 		}
 	}
 
@@ -552,8 +558,8 @@ int read_desc(char* desc, int size) {
 	}
 
 	/* Insert terminating null character if needed. */
-	if (last_nws < size - 1) {
-		desc[last_nws + 1] = '\0';
+	if (index < size - 1) {
+		desc[index + 1] = '\0';
 	}
 
 	return 1;
@@ -612,7 +618,7 @@ void read_l_command(struct kanban* board) {
 	struct task* task;
 
 	/* Try to read IDs. */
-	while ((id = read_id())) {
+	while (read_id(&id)) {
 		empty = 0;
 		task = find_task(board, id);
 		if (task == NULL) {
