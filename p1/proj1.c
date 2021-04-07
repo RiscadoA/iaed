@@ -409,7 +409,8 @@ void move_task(struct kanban* b, int id, const char* usr, const char* act) {
 
 	if ((task = find_task(b, id)) == NULL) /* Get task. */
 		puts(NO_SUCH_TASK_STR);
-	else if (strncmp(act, TO_DO_STR, ACTIVITY_DESC_SZ) == 0)
+	else if (strncmp(act, TO_DO_STR, ACTIVITY_DESC_SZ) == 0 &&
+			 strncmp(task->activity, TO_DO_STR, ACTIVITY_DESC_SZ) != 0)
 		puts(TASK_ALREADY_STARTED_STR); /* Task had already been started. */
 	else if ((usr = find_user(b, usr)) == NULL) /* Get user. */
 		puts(NO_SUCH_USER_STR);
