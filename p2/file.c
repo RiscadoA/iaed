@@ -19,8 +19,8 @@ struct file {
 };
 
 /*
- *	Creates a new file on a path with a NULL value. If a file already exists,
- *	the old file is returned unchanged.
+ * Creates a new file on a path with a NULL value. If a file already exists,
+ * the old file is returned unchanged.
 */
 struct file* file_create(const char* path, struct file* root) {
 	struct file* file;
@@ -37,8 +37,13 @@ struct file* file_create(const char* path, struct file* root) {
 			file->component = (char*)malloc((clen + 1) * sizeof(char));
 			strncpy(file->component, path, clen);
 			file->component[clen] = '\0';
+			file->parent = root;
 			file->lex_children = NULL;
 			file->time_children = NULL;
+			if (root != NULL) {
+				avl_insert(root->lex_children, file);
+				list_insert(root->time_children, file);
+			}
 			return file_create(path + clen + 1, file);
 		}
 
@@ -46,8 +51,8 @@ struct file* file_create(const char* path, struct file* root) {
 }
 
 /*
- *	Destroys a file and its children, removing it from the tree and freeing the
- *	memory associated with it.
+ * Destroys a file and its children, removing it from the tree and freeing the
+ * memory associated with it.
  */
 void file_destroy(struct file* file) {
 	struct file* child;
@@ -104,4 +109,43 @@ const char* file_value(struct file* file) {
 /* Returns a file's path component. */
 const char* file_component(struct file* file) {
 	return file->component;
+}
+
+/* Prints a file's path recursivily */
+void file_print_path(struct file* root) {
+	if (root->parent == NULL)
+		return;
+	file_print_path(root->parent);
+	printf("/%s", root->component);
+}
+
+/* Auxiliar function which prints each path and value */
+void* file_print_aux(void* _, struct file* file) {
+	file_print_path(file);
+	putchar(' ');
+	puts(file->value);
+	list_traverse(file->time_children, NULL, &file_print_aux);
+	return NULL;
+}
+
+/*
+ * Prints all paths and values beneath the root file passed sorted by creation
+ * time.
+ */
+void file_print(struct file* root) {
+	list_traverse(root->time_children, NULL, &file_print_aux);
+}
+
+/* Auxiliar function which prints each file traversed */
+void* file_list_aux(void* _, struct file* file) {
+	puts(file->component);
+	return NULL;
+}
+
+/*
+ * Prints all paths immediately beneath the root file passed sorted
+ * lexicographicaly.
+ */
+void file_list(struct file* root) {
+	avl_traverse(root->lex_children, NULL, &file_list_aux);
 }
