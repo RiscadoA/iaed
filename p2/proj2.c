@@ -5,34 +5,19 @@
  */
 
 #include <stdio.h>
-#include <ctype.h>
 #include <string.h>
 
-#define MAX_INSTRUCTION_SIZE 65537
-
-#define QUIT_COMMAND "quit"
-#define HELP_COMMAND "help"
-
-
-#define NO_MEMORY_ERROR "No memory."
-#define HELP_MESSAGE \
-	"help: Imprime os comandos disponíveis.\n"\
-	"quit: Termina o programa.\n"\
-	"set: Adiciona ou modifica o valor a armazenar.\n"\
-	"print: Imprime todos os caminhos e valores.\n"\
-	"find: Imprime o valor armazenado.\n"\
-	"list: Lista todos os componentes imediatos de um sub-caminho.\n"\
-	"search: Procura o caminho dado um valor.\n"\
-	"delete: Apaga um caminho e todos os subcaminhos."
+#include "constants.h"
+#include "tad.h"
 
 /*
  * Parses a path from a string, ignoring beginning and trailing whitespaces.
  * *path is set to a malloc'ed string containing the parsed path. A pointer to
  * the first character after the parsed path in the original string is returned.
  */
-/*const char* parse_path(const char* str, char** path) {
+const char* parse_path(const char* str, char** path) {
 	return NULL;
-}*/
+}
 
 /*
  * Tries to parse a command from a string, ignoring beginning and trailing
@@ -40,7 +25,7 @@
  * the parsed command in the original string is returned. Otherwise, NULL is
  * returned.
  */
-const char* read_command(const char* str, const char* command) {
+const char* parse_command(const char* str, const char* command) {
 	/* Skip whitespaces */
 	for (; isspace(*str); ++str);
 	/* Match the two strings until one ends */
@@ -56,9 +41,9 @@ const char* read_command(const char* str, const char* command) {
 int parse_instruction(const char* instruction) {
 	/*const char* it;*/
 
-	if (read_command(instruction, QUIT_COMMAND))
+	if (parse_command(instruction, QUIT_COMMAND))
 		return 0;
-	else if (read_command(instruction, HELP_COMMAND))
+	else if (parse_command(instruction, HELP_COMMAND))
 		puts(HELP_MESSAGE);
 
 	return 1;
@@ -70,8 +55,9 @@ int main() {
 
 	do {
 		/* Read instruction from stdin */
-		fgets(instruction, MAX_INSTRUCTION_SIZE, stdin);
+		fgets(instruction, MAX_INSTRUCTION_SIZE - 1, stdin);
 		if (instruction[strlen(instruction) - 1] != '\n') {
+			/* This happens if the line doesn't fit inside the buffer */
 			puts(NO_MEMORY_ERROR);
 			return 1;
 		}
