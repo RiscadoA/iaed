@@ -77,9 +77,9 @@ void list_remove(struct list* list, struct link* link) {
 }
 
 /*
- * Traverses a doubly linked list. fn(ptr, file) is called for each file
- * present in the list. If fn(ptr, file) returns a non-NULL value, the traversal
- * ends early and that value is returned.
+ * Traverses a doubly linked list. fn(ptr, file) is called for each file present
+ * in the list. If fn(ptr, file) returns a non-NULL value, the traversal ends
+ * early and that value is returned. Otherwise, NULL is returned.
  */
 void* list_traverse(struct list* list, void* ptr, traverse_fn fn) {
 	struct link* link;
