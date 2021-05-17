@@ -16,22 +16,16 @@ struct link;
  * Function pointer type passed to traversal functions. If the function returns
  * a non NULL value, the traversal is ended early.
  */
-typedef void*(*traverse_fn)(void*, struct file* file);
-
-/*
- * Function pointer type used by the AVL tree to extract a key from a file
- * which is then used for comparison.
- */
-typedef int(*file_hash_fn)(const struct file* file);
+typedef void*(*traverse_fn)(void*, struct file*);
 
 /* File ADT function prototypes. */
 
-struct file* file_create(const char* path, struct file* root);
+struct file* file_create(char* path, struct file* root);
 void file_destroy(struct file* file);
-void file_set(const char* path, char* value, struct file* root);
+struct file* file_set(char* path, char* value, struct file* root);
 
-struct file* file_find(struct file* root, const char* path);
-struct file* file_search(struct file* root, const char* value);
+struct file* file_find(struct file* root, char* path);
+struct file* file_search(struct file* root, char* value);
 void file_print(struct file* root);
 void file_list(struct file* root);
 
@@ -55,5 +49,6 @@ void list_destroy(struct list* list);
 struct link* list_insert(struct list* list, struct file* file);
 void list_remove(struct list* list, struct link* link);
 void* list_traverse(struct list* list, void* ptr, traverse_fn fn);
+struct file* list_first(struct list* list);
 
 #endif

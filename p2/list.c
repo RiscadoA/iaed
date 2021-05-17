@@ -91,3 +91,8 @@ void* list_traverse(struct list* list, void* ptr, traverse_fn fn) {
 
 	return NULL;
 }
+
+/* Returns the first file in a list. */
+struct file* list_first(struct list* list) {
+	return list->first == NULL ? NULL : list->first->file;
+}
