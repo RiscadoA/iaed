@@ -4,7 +4,6 @@
  * Description: Hash table implementation used by the filesystem.
  */
 
-#include <stdio.h> /*TODO REMOVE*/
 #include <stdlib.h>
 #include <string.h>
 
@@ -130,6 +129,7 @@ struct file* table_search(struct table* table, const char* value) {
 	query.value = value;
 	query.best = NULL;
 
+	/* Find best file in the list */
 	if (table->cells[h] != NULL)
 		list_traverse(table->cells[h], &query, &table_list_traverse_aux);
 

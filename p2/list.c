@@ -34,7 +34,7 @@ struct list* list_create(void) {
 void list_destroy(struct list* list) {
 	struct link* link;
 	
-	/* Free all links */
+	/* Free all links in the list */
 	while(list->first != NULL) {
 		link = list->first;
 		list->first = link->next;
@@ -52,6 +52,7 @@ void list_destroy(struct list* list) {
 struct link* list_insert(struct list* list, struct file* file) {
 	struct link* link = malloc(sizeof(struct link));
 	
+	/* Insert link at the end of the list */
 	if (link != NULL) {
 		link->next = NULL;
 		link->prev = list->last;
@@ -101,6 +102,7 @@ void* list_traverse(struct list* list, void* ptr, traverse_fn fn) {
 struct link* list_find(struct list* list, struct file* file) {
 	struct link* link;
 	
+	/* Iterate over the list to find the file */
 	for (link = list->first; link != NULL; link = link->next)
 		if (link->file == file)
 			return link;

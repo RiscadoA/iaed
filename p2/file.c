@@ -37,18 +37,18 @@ static struct file* file_alloc(const char* comp, int time) {
 	if ((file = calloc(1, sizeof(struct file))) == NULL)
 		return NULL;
 	if ((file->component = malloc(strlen(comp) + 1)) == NULL) {
-		free(file);
+		free(file); /* Allocation failed */
 		return NULL;
 	}
-	if ((file->l_children = list_create()) == NULL) {
-		free(file);
+	if ((file->l_children = list_create()) == NULL) { /* Create children list */
+		free(file); /* Allocation failed */
 		free(file->component);
 		return NULL;
 	}
 
 	strcpy(file->component, comp);
 	file->time = time;
-
+	
 	return file;
 }
 
@@ -62,16 +62,41 @@ static void file_free(struct file* file) {
 	free(file);
 }
 
+/*
+ * Adds a file to a parent file. Returns 0 if memory allocation failed,
+ * otherwise returns 1.
+ */
+static int file_add(struct file* parent, struct file* file) {
+	struct avl* avl;
+
+	file->parent = parent;
+	file->height = parent == NULL ? 0 : parent->height + 1;
+
+	if ((file->l_self = list_insert(parent->l_children, file)) == NULL)
+		return 0; /* Allocation failed */
+
+	if ((avl = avl_insert(parent->avl_children, file)) == NULL) {
+		list_remove(parent->l_children, file->l_self);
+		return 0; /* Allocation failed */
+	}
+
+	parent->avl_children = avl;
+
+	return 1;
+}
+
 /* Creates a filesystem. Returns NULL if the memory allocation failed. */
 struct fs* filesystem_create(void) {
 	struct fs* fs = calloc(1, sizeof(struct fs));
 	
+	/* Allocate root file */
 	fs->root = file_alloc("", 0);
 	if (fs->root == NULL) {
 		free(fs);
 		return NULL;
 	}
 
+	/* Create the hash table used to search files by value */
 	fs->value_table = table_create();
 	if (fs->value_table == NULL) {
 		file_free(fs->root);
@@ -96,32 +121,22 @@ void filesystem_destroy(struct fs* fs) {
  */
 struct file* file_create(struct fs* fs, char* path) {
 	struct file* file, * root = fs->root;
-	struct avl* avl;
 	const char* comp;
 
+	/* For each component in path, find file or create one if none is found */
 	for (comp = strtok(path, "/"); comp != NULL; comp = strtok(NULL, "/")) {
 		file = avl_find(root->avl_children, comp);
-		if (file != NULL)
+		if (file != NULL) /* File already exists */
 			root = file;
-		else {
-			file = file_alloc(comp, ++fs->time);
-			if (file == NULL)
+		else { /* File not found, create it */
+			if ((file = file_alloc(comp, ++fs->time)) == NULL)
 				return NULL; /* Allocation failed */
-			
-			if ((file->l_self = list_insert(root->l_children, file)) == NULL) {
+
+			if (!file_add(root, file)) { /* Add file to parent */
 				file_free(file);
-				return NULL; /* Allocation failed */
+				return NULL;
 			}
 
-			if ((avl = avl_insert(root->avl_children, file)) == NULL) {
-				list_remove(root->l_children, file->l_self);
-				file_free(file);
-				return NULL; /* Allocation failed */
-			}
-
-			file->parent = root;
-			file->height = root->height + 1;
-			root->avl_children = avl;
 			root = file;
 		}
 	}
@@ -131,7 +146,8 @@ struct file* file_create(struct fs* fs, char* path) {
 
 /*
  * Delete a file and its children, removing it from the tree and freeing the
- * memory associated with it.
+ * memory associated with it. If file is NULL, every file except the root is
+ * deleted.
  */
 void file_delete(struct fs* fs, struct file* file) {
 	struct file* child, * parent;
@@ -153,10 +169,8 @@ void file_delete(struct fs* fs, struct file* file) {
 			list_remove(parent->l_children, file->l_self);
 		}
 
-		table_remove(fs->value_table, file);
-
-		/* Free memory */
-		file_free(file);
+		table_remove(fs->value_table, file); /* Remove file from value table */
+		file_free(file); /* Free memory */
 	}
 }
 
@@ -168,6 +182,7 @@ struct file* file_find(struct fs* fs, char* path) {
 	struct file* file = fs->root;
 	const char* comp;
 
+	/* For each component in the path find a children file */
 	for (comp = strtok(path, "/"); comp != NULL; comp = strtok(NULL, "/")) {
 		file = avl_find(file->avl_children, comp);
 		if (file == NULL)

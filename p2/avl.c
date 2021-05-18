@@ -18,24 +18,24 @@ struct avl {
 };
 
 /* Returns the height of a sub-tree of an AVL. */
-int avl_height(struct avl* avl) {
+static int avl_height(struct avl* avl) {
 	return avl == NULL ? 0 : avl->height;	
 }
 
 /* Returns the height of a sub-tree of an AVL. */
-int avl_balance_factor(struct avl* avl) {
+static int avl_balance_factor(struct avl* avl) {
 	return avl == NULL ? 0 : avl_height(avl->left) - avl_height(avl->right);
 }
 
 /* Update the height of a sub-tree of an AVL. */
-void avl_update_height(struct avl* avl) {
+static void avl_update_height(struct avl* avl) {
 	int h_left = avl_height(avl->left);
 	int h_right = avl_height(avl->right);
 	avl->height = h_left > h_right ? h_left + 1 : h_right + 1;
 }
 
 /* Rotates left an AVL node. */
-struct avl* avl_rotate_l(struct avl* avl) {
+static struct avl* avl_rotate_l(struct avl* avl) {
 	struct avl* x = avl->right;
 	avl->right = x->left;
 	x->left = avl;
@@ -45,7 +45,7 @@ struct avl* avl_rotate_l(struct avl* avl) {
 }
 
 /* Rotates left an AVL node. */
-struct avl* avl_rotate_r(struct avl* avl) {
+static struct avl* avl_rotate_r(struct avl* avl) {
 	struct avl* x = avl->left;
 	avl->left = x->right;
 	x->right = avl;
@@ -55,7 +55,7 @@ struct avl* avl_rotate_r(struct avl* avl) {
 }
 
 /* Performs a double rotation on an AVL node (left -> right). */
-struct avl* avl_rotate_lr(struct avl* avl) {
+static struct avl* avl_rotate_lr(struct avl* avl) {
 	if (avl == NULL)
 		return NULL;
 	avl->left = avl_rotate_l(avl->left);
@@ -63,7 +63,7 @@ struct avl* avl_rotate_lr(struct avl* avl) {
 }
 
 /* Performs a double rotation on an AVL node (right -> left). */
-struct avl* avl_rotate_rl(struct avl* avl) {
+static struct avl* avl_rotate_rl(struct avl* avl) {
 	if (avl == NULL)
 		return NULL;
 	avl->right = avl_rotate_r(avl->right);
@@ -71,7 +71,7 @@ struct avl* avl_rotate_rl(struct avl* avl) {
 }
 
 /* Balances an AVL sub-tree and returns a pointer to the new root. */
-struct avl* avl_balance(struct avl* avl) {
+static struct avl* avl_balance(struct avl* avl) {
 	int balance_factor = avl_balance_factor(avl);
 
 	if (avl == NULL)
@@ -96,7 +96,7 @@ struct avl* avl_balance(struct avl* avl) {
 }
 
 /* Returns the node with the largest key in an AVL sub-tree. */
-struct avl* avl_max(struct avl* avl) {
+static struct avl* avl_max(struct avl* avl) {
 	while (avl != NULL && avl->right != NULL)
 		avl = avl->right;
 	return avl;
@@ -128,40 +128,34 @@ struct avl* avl_insert(struct avl* avl, struct file* file) {
 		cmp > 0 ? (avl->right = new) : (avl->left = new); /* Update sub-tree */
 	}
 	
-	return avl_balance(avl);
+	return avl_balance(avl); /* Balance tree */
 }
 
 /* Removes a file from an AVL. A pointer to the new AVL root is returned. */
 struct avl* avl_remove(struct avl* avl, struct file* file) {
-	struct avl* aux;
+	struct avl* aux = avl;
 	int cmp;
 
 	if (avl == NULL)
 		return NULL;
-	
-	cmp = strcmp(file_component(file), file_component(avl->file));
+	cmp = strcmp(file_component(file), file_component(avl->file)); /* BSearch */
 	if (cmp < 0)
 		avl->left = avl_remove(avl->left, file);
 	else if (cmp > 0)
 		avl->right = avl_remove(avl->right, file);
 	else if (avl->left != NULL && avl->right != NULL) {
-		aux = avl_max(avl->left);
-		avl->file = aux->file;
-		aux->file = file;
+		aux = avl_max(avl->left); /* Found a internal node */
+		avl->file = aux->file, aux->file = file;
 		avl->left = avl_remove(avl->left, file);
 	}
 	else {
-		aux = avl;
-		if (avl->left == NULL && avl->right == NULL)
-			avl = NULL;
-		else if (avl->left == NULL)
-			avl = avl->right;
-		else if (avl->right == NULL)
-			avl = avl->left;
+		if (avl->left == NULL && avl->right == NULL) /* Leaf node */
+			avl = NULL; 
+		else /* Node with only one child */
+			avl = avl->left == NULL ? avl->right : avl->left; 
 		free(aux);
 	}
-
-	return avl_balance(avl);
+	return avl_balance(avl); /* Balance tree */
 }
 
 /*
@@ -174,7 +168,7 @@ struct file* avl_find(struct avl* avl, const char* key) {
 	if (avl == NULL)
 		return NULL;
 
-	cmp = strcmp(key, file_component(avl->file));
+	cmp = strcmp(key, file_component(avl->file)); /* Binary search */
 	if (cmp < 0)
 		return avl_find(avl->left, key);
 	else if (cmp > 0)
