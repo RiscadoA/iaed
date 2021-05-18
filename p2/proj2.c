@@ -28,7 +28,7 @@ char* trim_whitespaces(char* str) {
 }
 
 /* Parses and executes an instruction. */
-int parse_instruction(char* instruction, struct file* root) {
+int parse_instruction(char* instruction, struct fs* fs) {
 	char* command, * path, * value;
 	struct file* file;
 
@@ -41,42 +41,42 @@ int parse_instruction(char* instruction, struct file* root) {
 	else if (strcmp(command, SET_COMMAND) == 0) {
 		path = strtok(NULL, WHITESPACE_CHARS);
 		value = trim_whitespaces(strtok(NULL, ""));
-		if (!file_set(path, value, root))
+		if (!file_set(fs, path, value))
 			return NO_MEMORY_CODE;
 	}
 	else if (strcmp(command, PRINT_COMMAND) == 0)
-		file_print(root);
+		file_print(fs);
 	else if (strcmp(command, FIND_COMMAND) == 0) {
 		path = strtok(NULL, WHITESPACE_CHARS);
-		if ((root = file_find(root, path)) == NULL)
+		if ((file = file_find(fs, path)) == NULL)
 			puts(NOT_FOUND_ERROR);
 		else
-			puts(file_value(root) == NULL ? NO_DATA_ERROR : file_value(root));
+			puts(file_value(file) == NULL ? NO_DATA_ERROR : file_value(file));
 	}
 	else if (strcmp(command, LIST_COMMAND) == 0) {
 		path = strtok(NULL, WHITESPACE_CHARS);
-		if ((root = file_find(root, path)) == NULL)
+		if ((file = file_find(fs, path)) == NULL)
 			puts(NOT_FOUND_ERROR);
 		else
-			file_list(root);
+			file_list(file);
 	}
 	else if (strcmp(command, SEARCH_COMMAND) == 0) {
 		value = trim_whitespaces(strtok(NULL, ""));
-		if ((root = file_search(root, value)) == NULL)
+		if ((file = file_search(fs, value)) == NULL)
 			puts(NOT_FOUND_ERROR);
 		else {
-			file_print_path(root);
+			file_print_path(file);
 			putchar('\n');
 		}
 	}
 	else if (strcmp(command, DELETE_COMMAND) == 0) {
 		path = strtok(NULL, WHITESPACE_CHARS);
-		if (path != NULL && (file = file_find(root, path)) == NULL)
+		if (path == NULL)
+			file_destroy(fs, NULL);
+		else if ((file = file_find(fs, path)) == NULL)
 			puts(NOT_FOUND_ERROR);
-		else if (path == NULL || file == root)
-			file_destroy_children(root);
 		else
-			file_destroy(file);
+			file_destroy(fs, file);
 	}
 
 	return SUCCESS_CODE;
@@ -86,16 +86,16 @@ int parse_instruction(char* instruction, struct file* root) {
 int main() {
 	int code;
 	char instruction[MAX_INSTRUCTION_SIZE];
-	struct file* root = file_create_root();
+	struct fs* fs = filesystem_create();
 
 	do {
 		fgets(instruction, MAX_INSTRUCTION_SIZE, stdin);
-		code = parse_instruction(instruction, root);
+		code = parse_instruction(instruction, fs);
 	} while(code == SUCCESS_CODE);
 
 	if (code == NO_MEMORY_CODE)
 		puts(NO_MEMORY_ERROR);
 
-	file_destroy(root);
+	filesystem_destroy(fs);
 	return 0;
 }

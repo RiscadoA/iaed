@@ -10,10 +10,18 @@
 
 #include "adt.h"
 
+/* Describes a filesystem. */
+struct fs {
+	struct file* root;			/* Root file ('/') */
+	struct table* value_table;	/* Hash table used to search by value */
+	int time;					/* Current time (number of files inserted) */
+};
+
 /* Describes a file. */
 struct file {
 	char* value;				/* File value, may be NULL */
 	char* component;			/* File path component */
+	int time;					/* File creation time */
 
 	struct file* parent;		/* Parent file */
 	struct avl* avl_children;	/* Children sorted lexicographically */
@@ -22,7 +30,7 @@ struct file {
 };
 
 /* Allocates a new file and fills it with default data. */
-struct file* file_alloc(const char* comp) {
+static struct file* file_alloc(const char* comp, int time) {
 	struct file* file;
 	
 	if ((file = calloc(1, sizeof(struct file))) == NULL)
@@ -38,12 +46,13 @@ struct file* file_alloc(const char* comp) {
 	}
 
 	strcpy(file->component, comp);
+	file->time = time;
 
 	return file;
 }
 
 /* Frees the memory associated with a file. */
-void file_free(struct file* file) {
+static void file_free(struct file* file) {
 	avl_destroy(file->avl_children);
 	list_destroy(file->l_children);
 	if (file->value != NULL)
@@ -52,9 +61,31 @@ void file_free(struct file* file) {
 	free(file);
 }
 
-/* Creates a filesystem root. Returns NULL if the memory allocation failed. */
-struct file* file_create_root(void) {
-	return file_alloc("");
+/* Creates a filesystem. Returns NULL if the memory allocation failed. */
+struct fs* filesystem_create(void) {
+	struct fs* fs = calloc(1, sizeof(struct fs));
+	
+	fs->root = file_alloc("", 0);
+	if (fs->root == NULL) {
+		free(fs);
+		return NULL;
+	}
+
+	fs->value_table = table_create();
+	if (fs->value_table == NULL) {
+		file_free(fs->root);
+		free(fs);
+		return NULL;
+	}
+
+	return fs;
+}
+
+/* Destroys a filesystem and frees all memory associated with it. */
+void filesystem_destroy(struct fs* fs) {
+	file_destroy(fs, fs->root);
+	table_destroy(fs->value_table);
+	free(fs);
 }
 
 /*
@@ -62,8 +93,8 @@ struct file* file_create_root(void) {
  * the old file is returned unchanged. Returns NULL if the memory allocation
  * failed.
  */
-struct file* file_create(char* path, struct file* root) {
-	struct file* file;
+struct file* file_create(struct fs* fs, char* path) {
+	struct file* file, * root = fs->root;
 	struct avl* avl;
 	const char* comp;
 
@@ -72,7 +103,7 @@ struct file* file_create(char* path, struct file* root) {
 		if (file != NULL)
 			root = file;
 		else {
-			file = file_alloc(comp);
+			file = file_alloc(comp, ++fs->time);
 			if (file == NULL)
 				return NULL; /* Allocation failed */
 			file->parent = root;
@@ -100,50 +131,48 @@ struct file* file_create(char* path, struct file* root) {
  * Destroys a file and its children, removing it from the tree and freeing the
  * memory associated with it.
  */
-void file_destroy(struct file* file) {
-	struct file* child;
-	struct file* parent = file->parent;
+void file_destroy(struct fs* fs, struct file* file) {
+	struct file* child, * parent;
 
-	if (file == NULL)
-		return;
-
-	/* Destroy children first */
-	while ((child = list_first(file->l_children)) != NULL)
-		file_destroy(child);
-
-	/* Remove file from its parent */
-	if (parent != NULL) {
-		parent->avl_children = avl_remove(parent->avl_children, file);
-		list_remove(parent->l_children, file->l_self);
+	if (file == NULL) {
+		/* Destroy every non-root file */
+		while ((child = list_first(fs->root->l_children)) != NULL)
+			file_destroy(fs, child);
 	}
+	else {
+		/* Destroy children first */
+		while ((child = list_first(file->l_children)) != NULL)
+			file_destroy(fs, child);
+		parent = file->parent;
 
-	/* Free memory */
-	file_free(file);
-}
+		/* Remove file from its parent */
+		if (parent != NULL) {
+			parent->avl_children = avl_remove(parent->avl_children, file);
+			list_remove(parent->l_children, file->l_self);
+		}
 
-/* Calls file_destroy(child) for every child in file. */
-void file_destroy_children(struct file* file) {
-	struct file* child;
+		table_remove(fs->value_table, file);
 
-	/* Destroy children */
-	while ((child = list_first(file->l_children)) != NULL)
-		file_destroy(child);
+		/* Free memory */
+		file_free(file);
+	}
 }
 
 /*
  * Tries to find a file from its path. Returns a pointer to the file, and, if no
  * file was found, NULL is returned.
  */
-struct file* file_find(struct file* root, char* path) {
+struct file* file_find(struct fs* fs, char* path) {
+	struct file* file = fs->root;
 	const char* comp;
 
 	for (comp = strtok(path, "/"); comp != NULL; comp = strtok(NULL, "/")) {
-		root = avl_find(root->avl_children, comp);
-		if (root == NULL)
+		file = avl_find(file->avl_children, comp);
+		if (file == NULL)
 			return NULL;
 	}
 
-	return root;
+	return file;
 }
 
 /*
@@ -160,8 +189,8 @@ void* file_search_aux(void* value, struct file* root) {
  * Searches a file by value. If the file is not found, NULL is returned.
  * Otherwise, a pointer to the file is returned.
  */
-struct file* file_search(struct file* root, char* value) {
-	return list_traverse(root->l_children, value, &file_search_aux);
+struct file* file_search(struct fs* fs, char* value) {
+	return table_search(fs->value_table, value);
 }
 
 /*
@@ -169,12 +198,18 @@ struct file* file_search(struct file* root, char* value) {
  * specified path. Returns a pointer to the file whose value was changed. If
  * a memory allocation fails, NULL is returned. 
  */
-struct file* file_set(char* path, char* value, struct file* root) {
-	struct file* file = file_create(path, root);
+struct file* file_set(struct fs* fs, char* path, char* value) {
+	struct file* file = file_create(fs, path);
 
 	if (file != NULL) {
-		file->value = realloc(file->value, strlen(value) + 1);
+		table_remove(fs->value_table, file);
+
+		if ((file->value = realloc(file->value, strlen(value) + 1)) == NULL)
+			return NULL; /* Allocation failed */
 		strcpy(file->value, value);
+
+		if (!table_insert(fs->value_table, file))
+			return NULL; /* Allocation failed */
 	}
 
 	return file;
@@ -209,8 +244,8 @@ void* file_print_aux(void* unused, struct file* file) {
  * Prints all paths and values beneath the root file passed sorted by creation
  * time.
  */
-void file_print(struct file* root) {
-	list_traverse(root->l_children, NULL, &file_print_aux);
+void file_print(struct fs* fs) {
+	list_traverse(fs->root->l_children, NULL, &file_print_aux);
 }
 
 /* Auxiliar function which prints each file traversed */
@@ -226,15 +261,14 @@ void* file_list_aux(void* unused, struct file* file) {
 }
 
 /*
- * Prints all paths immediately beneath the root file passed sorted
- * lexicographicaly.
+ * Prints all paths immediately beneath the file passed sorted lexicographicaly.
  */
-void file_list(struct file* root) {
+void file_list(struct file* file) {
 	/* The AVL is traversed in order = lexicographically */
-	avl_traverse(root->avl_children, NULL, &file_list_aux);
+	avl_traverse(file->avl_children, NULL, &file_list_aux);
 }
 
-/* Returns a file's value. */
+/* Returns a file's value. May be NULL. */
 const char* file_value(struct file* file) {
 	return file->value;
 }
@@ -242,4 +276,16 @@ const char* file_value(struct file* file) {
 /* Returns a file's path component. */
 const char* file_component(struct file* file) {
 	return file->component;
+}
+
+/* Returns a file's parent. May be NULL. */
+struct file* file_parent(struct file* file) {
+	if (file == NULL)
+		return NULL;
+	return file->parent;
+}
+
+/* Returns a file's creation time. */
+int file_time(struct file* file) {
+	return file->time;
 }
