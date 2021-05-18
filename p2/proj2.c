@@ -30,6 +30,7 @@ char* trim_whitespaces(char* str) {
 /* Parses and executes an instruction. */
 int parse_instruction(char* instruction, struct file* root) {
 	char* command, * path, * value;
+	struct file* file;
 
 	command = strtok(instruction, WHITESPACE_CHARS);
 
@@ -70,10 +71,12 @@ int parse_instruction(char* instruction, struct file* root) {
 	}
 	else if (strcmp(command, DELETE_COMMAND) == 0) {
 		path = strtok(NULL, WHITESPACE_CHARS);
-		if ((root = file_find(root, path)) == NULL)
+		if (path != NULL && (file = file_find(root, path)) == NULL)
 			puts(NOT_FOUND_ERROR);
+		else if (path == NULL || file == root)
+			file_destroy_children(root);
 		else
-			file_destroy(root);
+			file_destroy(file);
 	}
 
 	return SUCCESS_CODE;

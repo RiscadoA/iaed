@@ -64,6 +64,7 @@ struct file* file_create_root(void) {
  */
 struct file* file_create(char* path, struct file* root) {
 	struct file* file;
+	struct avl* avl;
 	const char* comp;
 
 	for (comp = strtok(path, "/"); comp != NULL; comp = strtok(NULL, "/")) {
@@ -75,12 +76,19 @@ struct file* file_create(char* path, struct file* root) {
 			if (file == NULL)
 				return NULL; /* Allocation failed */
 			file->parent = root;
-			file->l_self = list_insert(root->l_children, file);
-			root->avl_children = avl_insert(root->avl_children, file);
-			if (file->l_self == NULL || root->avl_children == NULL) {
+			
+			if ((file->l_self = list_insert(root->l_children, file)) == NULL) {
 				file_free(file);
 				return NULL; /* Allocation failed */
 			}
+
+			if ((avl = avl_insert(root->avl_children, file)) == NULL) {
+				list_remove(root->l_children, file->l_self);
+				file_free(file);
+				return NULL; /* Allocation failed */
+			}
+
+			root->avl_children = avl;
 			root = file;
 		}
 	}
@@ -111,6 +119,15 @@ void file_destroy(struct file* file) {
 
 	/* Free memory */
 	file_free(file);
+}
+
+/* Calls file_destroy(child) for every child in file. */
+void file_destroy_children(struct file* file) {
+	struct file* child;
+
+	/* Destroy children */
+	while ((child = list_first(file->l_children)) != NULL)
+		file_destroy(child);
 }
 
 /*

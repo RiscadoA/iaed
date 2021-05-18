@@ -72,11 +72,10 @@ struct avl* avl_rotate_rl(struct avl* avl) {
 
 /* Balances an AVL sub-tree and returns a pointer to the new root. */
 struct avl* avl_balance(struct avl* avl) {
-	int balance_factor;
+	int balance_factor = avl_balance_factor(avl);
 
 	if (avl == NULL)
 		return NULL;
-	balance_factor = avl_balance_factor(avl);
 
 	if (balance_factor > 1) {
 		if (avl_balance_factor(avl->left) >= 0)
@@ -113,7 +112,7 @@ struct avl* avl_insert(struct avl* avl, struct file* file) {
 	int cmp;
 
 	if (avl == NULL) {
-		avl = calloc(1, sizeof(struct avl));
+		avl = calloc(1, sizeof(struct avl)); /* Create root */
 		if (avl == NULL) /* Allocation failed */
 			return NULL;
 		avl->file = file;
@@ -122,10 +121,10 @@ struct avl* avl_insert(struct avl* avl, struct file* file) {
 	else {
 		if (!(cmp = strcmp(file_component(file), file_component(avl->file))))
 			return avl; /* File already in the AVL, don't change anything */
-		
-		new = avl_insert(cmp > 0 ? avl->right : avl->left, file);
-		if (new == NULL)
+	
+		if ((new = avl_insert(cmp > 0 ? avl->right : avl->left, file)) == NULL)
 			return NULL; /* Allocation failed */
+
 		cmp > 0 ? (avl->right = new) : (avl->left = new); /* Update sub-tree */
 	}
 	
@@ -145,13 +144,19 @@ struct avl* avl_remove(struct avl* avl, struct file* file) {
 		avl->left = avl_remove(avl->left, file);
 	else if (cmp > 0)
 		avl->right = avl_remove(avl->right, file);
-	else { /* Found node, delete it */
+	else if (avl->left != NULL && avl->right != NULL) {
+		aux = avl_max(avl->left);
+		avl->file = aux->file;
+		aux->file = file;
+		avl->left = avl_remove(avl->left, file);
+	}
+	else {
 		aux = avl;
 		if (avl->left == NULL && avl->right == NULL)
 			avl = NULL;
 		else if (avl->left == NULL)
 			avl = avl->right;
-		else
+		else if (avl->right == NULL)
 			avl = avl->left;
 		free(aux);
 	}

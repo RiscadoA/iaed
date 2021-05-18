@@ -23,6 +23,7 @@ typedef void*(*traverse_fn)(void*, struct file*);
 struct file* file_create_root(void);
 struct file* file_create(char* path, struct file* root);
 void file_destroy(struct file* file);
+void file_destroy_children(struct file* file);
 struct file* file_set(char* path, char* value, struct file* root);
 
 struct file* file_find(struct file* root, char* path);
