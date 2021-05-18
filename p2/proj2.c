@@ -1,67 +1,98 @@
 /*
  * File: 		proj2.c
  * Author: 		Ricardo Antunes
- * Description: IAED project 2.
+ * Description: Main source file, where commands are read, parsed and executed.
  */
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "constants.h"
-#include "tad.h"
+#include "adt.h"
 
 /*
- * Parses a path from a string, ignoring beginning and trailing whitespaces.
- * *path is set to a malloc'ed string containing the parsed path. A pointer to
- * the first character after the parsed path in the original string is returned.
+ * Removes beginning and trailing whitespaces from a string and returns it.
+ * Since the returned address differs from the one passed to the function, the
+ * resulting string must be freed using the original address.
  */
-const char* parse_path(const char* str, char** path) {
-	return NULL;
+char* trim_whitespaces(char* str) {
+	int l;
+
+	str += strspn(str, WHITESPACE_CHARS);
+	l = strlen(str);
+	for (; l > 0 && strchr(WHITESPACE_CHARS, str[l - 1]); --l)
+		str[l - 1] = '\0';
+
+	return str;
 }
 
-/*
- * Tries to parse a command from a string, ignoring beginning and trailing
- * whitespaces. If the command is found, a pointer to the first character after
- * the parsed command in the original string is returned. Otherwise, NULL is
- * returned.
- */
-const char* parse_command(const char* str, const char* command) {
-	/* Skip whitespaces */
-	for (; isspace(*str); ++str);
-	/* Match the two strings until one ends */
-	for (; *command == *str && *command != '\0'; ++command, ++str);
-	/* Only succeed if the whole command string matches the input */
-	return *command == '\0' ? str : NULL;
-}
+/* Parses and executes an instruction. */
+int parse_instruction(char* instruction, struct file* root) {
+	char* command, * path, * value;
 
-/*void read_value(const char* str, char** value) {
-	return NULL;
-}*/
+	command = strtok(instruction, WHITESPACE_CHARS);
 
-int parse_instruction(const char* instruction) {
-	/*const char* it;*/
-
-	if (parse_command(instruction, QUIT_COMMAND))
-		return 0;
-	else if (parse_command(instruction, HELP_COMMAND))
+	if (strcmp(command, QUIT_COMMAND) == 0)
+		return QUIT_CODE;
+	else if (strcmp(command, HELP_COMMAND) == 0)
 		puts(HELP_MESSAGE);
+	else if (strcmp(command, SET_COMMAND) == 0) {
+		path = strtok(NULL, WHITESPACE_CHARS);
+		value = trim_whitespaces(strtok(NULL, ""));
+		if (!file_set(path, value, root))
+			return NO_MEMORY_CODE;
+	}
+	else if (strcmp(command, PRINT_COMMAND) == 0)
+		file_print(root);
+	else if (strcmp(command, FIND_COMMAND) == 0) {
+		path = strtok(NULL, WHITESPACE_CHARS);
+		if ((root = file_find(root, path)) == NULL)
+			puts(NOT_FOUND_ERROR);
+		else
+			puts(file_value(root) == NULL ? NO_DATA_ERROR : file_value(root));
+	}
+	else if (strcmp(command, LIST_COMMAND) == 0) {
+		path = strtok(NULL, WHITESPACE_CHARS);
+		if ((root = file_find(root, path)) == NULL)
+			puts(NOT_FOUND_ERROR);
+		else
+			file_list(root);
+	}
+	else if (strcmp(command, SEARCH_COMMAND) == 0) {
+		value = trim_whitespaces(strtok(NULL, ""));
+		if ((root = file_search(root, value)) == NULL)
+			puts(NOT_FOUND_ERROR);
+		else {
+			file_print_path(root);
+			putchar('\n');
+		}
+	}
+	else if (strcmp(command, DELETE_COMMAND) == 0) {
+		path = strtok(NULL, WHITESPACE_CHARS);
+		if ((root = file_find(root, path)) == NULL)
+			puts(NOT_FOUND_ERROR);
+		else
+			file_destroy(root);
+	}
 
-	return 1;
+	return SUCCESS_CODE;
 }
 
-/* Reads commands from stdin line by line and executes them. */
+/* Reads instructions from stdin line by line and executes them. */
 int main() {
+	int code;
 	char instruction[MAX_INSTRUCTION_SIZE];
+	struct file* root = file_create_root();
 
 	do {
-		/* Read instruction from stdin */
-		fgets(instruction, MAX_INSTRUCTION_SIZE - 1, stdin);
-		if (instruction[strlen(instruction) - 1] != '\n') {
-			/* This happens if the line doesn't fit inside the buffer */
-			puts(NO_MEMORY_ERROR);
-			return 1;
-		}
-	} while(parse_instruction(instruction)); /* Parse instruction */
+		fgets(instruction, MAX_INSTRUCTION_SIZE, stdin);
+		code = parse_instruction(instruction, root);
+	} while(code == SUCCESS_CODE);
 
+	if (code == NO_MEMORY_CODE)
+		puts(NO_MEMORY_ERROR);
+
+	file_destroy(root);
 	return 0;
 }

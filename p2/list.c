@@ -6,7 +6,7 @@
 
 #include "adt.h"
 
-#include <malloc.h>
+#include <stdlib.h>
 
 /* Describes a doubly linked list link. */
 struct link {
@@ -57,7 +57,10 @@ struct link* list_insert(struct list* list, struct file* file) {
 		link->prev = list->last;
 		if (list->last != NULL)
 			list->last->next = link;
+		if (list->first == NULL)
+			list->first = link;
 		list->last = link;
+		link->file = file;
 	}
 
 	return link;
@@ -73,7 +76,7 @@ void list_remove(struct list* list, struct link* link) {
 		list->first = link->next;
 	if (list->last == link)
 		list->last = link->prev;
-	free(list);
+	free(link);
 }
 
 /*

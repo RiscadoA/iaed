@@ -7,7 +7,13 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
-#define MAX_INSTRUCTION_SIZE 65537
+#define MAX_INSTRUCTION_SIZE 65536
+
+#define WHITESPACE_CHARS " \t\n"
+
+#define SUCCESS_CODE 0
+#define QUIT_CODE 1
+#define NO_MEMORY_CODE 2
 
 #define QUIT_COMMAND "quit"
 #define HELP_COMMAND "help"
@@ -19,6 +25,9 @@
 #define DELETE_COMMAND "delete"
 
 #define NO_MEMORY_ERROR "No memory."
+#define NOT_FOUND_ERROR "not found"
+#define NO_DATA_ERROR "no data"
+
 #define HELP_MESSAGE \
 	"help: Imprime os comandos disponíveis.\n"\
 	"quit: Termina o programa.\n"\

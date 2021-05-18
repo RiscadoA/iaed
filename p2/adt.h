@@ -4,8 +4,8 @@
  * Description: Abstract data type function prototypes are declared here.
  */
 
-#ifndef TADS_H
-#define TADS_H
+#ifndef ADT_H
+#define ADT_H
 
 struct file;
 struct avl;
@@ -20,19 +20,19 @@ typedef void*(*traverse_fn)(void*, struct file*);
 
 /* File ADT function prototypes. */
 
+struct file* file_create_root(void);
 struct file* file_create(char* path, struct file* root);
 void file_destroy(struct file* file);
 struct file* file_set(char* path, char* value, struct file* root);
 
 struct file* file_find(struct file* root, char* path);
 struct file* file_search(struct file* root, char* value);
+void file_print_path(struct file* file);
 void file_print(struct file* root);
 void file_list(struct file* root);
 
 const char* file_value(struct file* file);
 const char* file_component(struct file* file);
-int file_time(struct file* file);
-struct file* file_parent(struct file* file);
 
 /* AVL tree ADT function prototypes. */
 

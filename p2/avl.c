@@ -7,7 +7,7 @@
 #include "adt.h"
 
 #include <string.h>
-#include <malloc.h>
+#include <stdlib.h>
 
 /* An AVL tree node. */
 struct avl {
@@ -96,6 +96,13 @@ struct avl* avl_balance(struct avl* avl) {
 	return avl;
 }
 
+/* Returns the node with the largest key in an AVL sub-tree. */
+struct avl* avl_max(struct avl* avl) {
+	while (avl != NULL && avl->right != NULL)
+		avl = avl->right;
+	return avl;
+}
+
 /*
  * Inserts a file into an AVL. If the memory allocation fails, the tree is left
  * unchanged and NULL is returned. Otherwise a pointer to the new AVL root is
@@ -113,7 +120,7 @@ struct avl* avl_insert(struct avl* avl, struct file* file) {
 		avl->height = 1;
 	}
 	else {
-		if (!(cmp = strcmp(file_component(avl->file), file_component(file))))
+		if (!(cmp = strcmp(file_component(file), file_component(avl->file))))
 			return avl; /* File already in the AVL, don't change anything */
 		
 		new = avl_insert(cmp > 0 ? avl->right : avl->left, file);
@@ -125,17 +132,31 @@ struct avl* avl_insert(struct avl* avl, struct file* file) {
 	return avl_balance(avl);
 }
 
-
 /* Removes a file from an AVL. A pointer to the new AVL root is returned. */
 struct avl* avl_remove(struct avl* avl, struct file* file) {
-	
-}
+	struct avl* aux;
+	int cmp;
 
-/* Frees all memory associated with an AVL tree. */
-void avl_destroy(struct avl* avl) {
-	avl_destroy(avl->left);
-	avl_destroy(avl->right);
-	free(avl);
+	if (avl == NULL)
+		return NULL;
+	
+	cmp = strcmp(file_component(file), file_component(avl->file));
+	if (cmp < 0)
+		avl->left = avl_remove(avl->left, file);
+	else if (cmp > 0)
+		avl->right = avl_remove(avl->right, file);
+	else { /* Found node, delete it */
+		aux = avl;
+		if (avl->left == NULL && avl->right == NULL)
+			avl = NULL;
+		else if (avl->left == NULL)
+			avl = avl->right;
+		else
+			avl = avl->left;
+		free(aux);
+	}
+
+	return avl_balance(avl);
 }
 
 /*
@@ -144,16 +165,26 @@ void avl_destroy(struct avl* avl) {
  */
 struct file* avl_find(struct avl* avl, const char* key) {
 	int cmp;
-	
+		
 	if (avl == NULL)
 		return NULL;
 
-	cmp = strcmp(file_component(avl->file), key);
+	cmp = strcmp(key, file_component(avl->file));
 	if (cmp < 0)
 		return avl_find(avl->left, key);
 	else if (cmp > 0)
 		return avl_find(avl->right, key);
 	return avl->file;
+}
+
+/* Frees all memory associated with an AVL tree. */
+void avl_destroy(struct avl* avl) {
+	if (avl == NULL)
+		return;
+
+	avl_destroy(avl->left);
+	avl_destroy(avl->right);
+	free(avl);
 }
 
 /*

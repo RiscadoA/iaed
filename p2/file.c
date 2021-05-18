@@ -4,9 +4,9 @@
  * Description: Filesystem implementation.
  */
 
-#include <malloc.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "adt.h"
 
@@ -52,6 +52,11 @@ void file_free(struct file* file) {
 	free(file);
 }
 
+/* Creates a filesystem root. Returns NULL if the memory allocation failed. */
+struct file* file_create_root(void) {
+	return file_alloc("");
+}
+
 /*
  * Creates a new file on a path with a NULL value. If a file already exists,
  * the old file is returned unchanged. Returns NULL if the memory allocation
@@ -59,7 +64,7 @@ void file_free(struct file* file) {
  */
 struct file* file_create(char* path, struct file* root) {
 	struct file* file;
-	const char* comp, * ncomp;
+	const char* comp;
 
 	for (comp = strtok(path, "/"); comp != NULL; comp = strtok(NULL, "/")) {
 		file = avl_find(root->avl_children, comp);
@@ -89,15 +94,19 @@ struct file* file_create(char* path, struct file* root) {
  */
 void file_destroy(struct file* file) {
 	struct file* child;
+	struct file* parent = file->parent;
+
+	if (file == NULL)
+		return;
 
 	/* Destroy children first */
-	for (child = list_first(file->l_children); child != NULL;)
+	while ((child = list_first(file->l_children)) != NULL)
 		file_destroy(child);
 
 	/* Remove file from its parent */
-	if (file->parent != NULL) {
-		avl_remove(file->parent->avl_children, file);
-		list_remove(file->parent->l_children, file->l_self);
+	if (parent != NULL) {
+		parent->avl_children = avl_remove(parent->avl_children, file);
+		list_remove(parent->l_children, file->l_self);
 	}
 
 	/* Free memory */
@@ -125,7 +134,7 @@ struct file* file_find(struct file* root, char* path) {
  * NULL is returned. Otherwise, a pointer to the file is returned.
  */
 void* file_search_aux(void* value, struct file* root) {
-	if (strcmp(value, root->value) == 0)
+	if (root->value != NULL && strcmp(value, root->value) == 0)
 		return root;
 	return list_traverse(root->l_children, value, &file_search_aux);
 }
@@ -146,25 +155,12 @@ struct file* file_search(struct file* root, char* value) {
 struct file* file_set(char* path, char* value, struct file* root) {
 	struct file* file = file_create(path, root);
 
-	if (file == NULL) {
-		free(value);
-		return NULL;
+	if (file != NULL) {
+		file->value = realloc(file->value, strlen(value) + 1);
+		strcpy(file->value, value);
 	}
-	else {
-		if (file->value != NULL)
-			free(file->value);
-		file->value = value;
-	}
-}
 
-/* Returns a file's value. */
-const char* file_value(struct file* file) {
-	return file->value;
-}
-
-/* Returns a file's path component. */
-const char* file_component(struct file* file) {
-	return file->component;
+	return file;
 }
 
 /* Prints a file's path recursivily */
@@ -176,10 +172,18 @@ void file_print_path(struct file* root) {
 }
 
 /* Auxiliar function which prints each path and value */
-void* file_print_aux(void* _, struct file* file) {
-	file_print_path(file);
-	putchar(' ');
-	puts(file->value);
+void* file_print_aux(void* unused, struct file* file) {
+	/*
+	 * Supress unused parameter warning, must be done to avoid having to create
+	 * another function pointer type and traversal function.
+	 */
+	(void)unused;
+		
+	if (file->value != NULL) {
+		file_print_path(file);
+		putchar(' ');
+		puts(file->value);
+	}
 	list_traverse(file->l_children, NULL, &file_print_aux);
 	return NULL;
 }
@@ -193,7 +197,13 @@ void file_print(struct file* root) {
 }
 
 /* Auxiliar function which prints each file traversed */
-void* file_list_aux(void* _, struct file* file) {
+void* file_list_aux(void* unused, struct file* file) {
+	/*
+	 * Supress unused parameter warning, must be done to avoid having to create
+	 * another function pointer type and traversal function.
+	 */
+	(void)unused;
+
 	puts(file->component);
 	return NULL;
 }
@@ -205,4 +215,14 @@ void* file_list_aux(void* _, struct file* file) {
 void file_list(struct file* root) {
 	/* The AVL is traversed in order = lexicographically */
 	avl_traverse(root->avl_children, NULL, &file_list_aux);
+}
+
+/* Returns a file's value. */
+const char* file_value(struct file* file) {
+	return file->value;
+}
+
+/* Returns a file's path component. */
+const char* file_component(struct file* file) {
+	return file->component;
 }
