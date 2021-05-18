@@ -22,6 +22,7 @@ struct file {
 	char* value;				/* File value, may be NULL */
 	char* component;			/* File path component */
 	int time;					/* File creation time */
+	int height;					/* File height in the tree */
 
 	struct file* parent;		/* Parent file */
 	struct avl* avl_children;	/* Children sorted lexicographically */
@@ -81,9 +82,9 @@ struct fs* filesystem_create(void) {
 	return fs;
 }
 
-/* Destroys a filesystem and frees all memory associated with it. */
+/* Deletes a filesystem and frees all memory associated with it. */
 void filesystem_destroy(struct fs* fs) {
-	file_destroy(fs, fs->root);
+	file_delete(fs, fs->root);
 	table_destroy(fs->value_table);
 	free(fs);
 }
@@ -106,7 +107,6 @@ struct file* file_create(struct fs* fs, char* path) {
 			file = file_alloc(comp, ++fs->time);
 			if (file == NULL)
 				return NULL; /* Allocation failed */
-			file->parent = root;
 			
 			if ((file->l_self = list_insert(root->l_children, file)) == NULL) {
 				file_free(file);
@@ -119,6 +119,8 @@ struct file* file_create(struct fs* fs, char* path) {
 				return NULL; /* Allocation failed */
 			}
 
+			file->parent = root;
+			file->height = root->height + 1;
 			root->avl_children = avl;
 			root = file;
 		}
@@ -128,21 +130,21 @@ struct file* file_create(struct fs* fs, char* path) {
 }
 
 /*
- * Destroys a file and its children, removing it from the tree and freeing the
+ * Delete a file and its children, removing it from the tree and freeing the
  * memory associated with it.
  */
-void file_destroy(struct fs* fs, struct file* file) {
+void file_delete(struct fs* fs, struct file* file) {
 	struct file* child, * parent;
 
 	if (file == NULL) {
-		/* Destroy every non-root file */
+		/* Delete every non-root file */
 		while ((child = list_first(fs->root->l_children)) != NULL)
-			file_destroy(fs, child);
+			file_delete(fs, child);
 	}
 	else {
-		/* Destroy children first */
+		/* Delete children first */
 		while ((child = list_first(file->l_children)) != NULL)
-			file_destroy(fs, child);
+			file_delete(fs, child);
 		parent = file->parent;
 
 		/* Remove file from its parent */
@@ -288,4 +290,9 @@ struct file* file_parent(struct file* file) {
 /* Returns a file's creation time. */
 int file_time(struct file* file) {
 	return file->time;
+}
+
+/* Returns a file's height on the filesystem. */
+int file_height(struct file* file) {
+	return file->height;
 }

@@ -72,11 +72,11 @@ int parse_instruction(char* instruction, struct fs* fs) {
 	else if (strcmp(command, DELETE_COMMAND) == 0) {
 		path = strtok(NULL, WHITESPACE_CHARS);
 		if (path == NULL)
-			file_destroy(fs, NULL);
+			file_delete(fs, NULL);
 		else if ((file = file_find(fs, path)) == NULL)
 			puts(NOT_FOUND_ERROR);
 		else
-			file_destroy(fs, file);
+			file_delete(fs, file);
 	}
 
 	return SUCCESS_CODE;

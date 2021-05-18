@@ -26,7 +26,7 @@ struct fs* filesystem_create(void);
 void filesystem_destroy(struct fs* fs);
 
 struct file* file_create(struct fs* fs, char* path);
-void file_destroy(struct fs* fs, struct file* file);
+void file_delete(struct fs* fs, struct file* file);
 struct file* file_set(struct fs* fs, char* path, char* value);
 
 struct file* file_find(struct fs* fs, char* path);
@@ -39,6 +39,7 @@ const char* file_value(struct file* file);
 const char* file_component(struct file* file);
 struct file* file_parent(struct file* file);
 int file_time(struct file* file);
+int file_height(struct file* file);
 
 /* AVL tree ADT function prototypes. */
 
@@ -63,6 +64,7 @@ void list_destroy(struct list* list);
 struct link* list_insert(struct list* list, struct file* file);
 void list_remove(struct list* list, struct link* link);
 void* list_traverse(struct list* list, void* ptr, traverse_fn fn);
+struct link* list_find(struct list* list, struct file* file);
 struct file* list_first(struct list* list);
 
 #endif

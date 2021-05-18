@@ -8,6 +8,7 @@
 #define CONSTANTS_H
 
 #define MAX_INSTRUCTION_SIZE 65536
+#define HASH_TABLE_SIZE 65537 /* Must be a prime */
 
 #define WHITESPACE_CHARS " \t\n"
 

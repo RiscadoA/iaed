@@ -66,8 +66,10 @@ struct link* list_insert(struct list* list, struct file* file) {
 	return link;
 }
 
-/* Removes a link from a doubly linked list. */
+/* Removes a link from a list. If the link is NULL, nothing happens. */
 void list_remove(struct list* list, struct link* link) {
+	if (link == NULL)
+		return;
 	if (link->prev != NULL)
 		link->prev->next = link->next;
 	if (link->next != NULL)
@@ -91,6 +93,17 @@ void* list_traverse(struct list* list, void* ptr, traverse_fn fn) {
 	for (link = list->first; link != NULL; link = link->next)
 		if ((ret = fn(ptr, link->file)) != NULL)
 			return ret;
+
+	return NULL;
+}
+
+/* Returns the link that points to a file. If no link is found, returns NULL. */
+struct link* list_find(struct list* list, struct file* file) {
+	struct link* link;
+	
+	for (link = list->first; link != NULL; link = link->next)
+		if (link->file == file)
+			return link;
 
 	return NULL;
 }
